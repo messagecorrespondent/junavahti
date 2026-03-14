@@ -1,0 +1,1212 @@
+<!DOCTYPE html>
+<html lang="fi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#0d1117" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="RailWatch" />
+  <meta name="description" content="Suomalaisten junien reaaliaikaseuranta" />
+  <link rel="apple-touch-icon" href="icon-192.png" />
+  <link rel="manifest" href="manifest.json" />
+  <title>RailWatch 🚂</title>
+
+  <!-- Leaflet map -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <style>
+    /* ── Tokens ─────────────────────────────────────── */
+    :root {
+      --bg:       #0d1117;
+      --surface:  #161b22;
+      --card:     #1c2333;
+      --border:   rgba(255,255,255,0.08);
+      --text:     #e6edf3;
+      --muted:    #7d8590;
+      --blue:     #58a6ff;
+      --green:    #3fb950;
+      --amber:    #d29922;
+      --red:      #f85149;
+      --nav:      60px;
+      --safe-top: env(safe-area-inset-top, 0px);
+      --safe-bot: env(safe-area-inset-bottom, 0px);
+    }
+
+    /* ── Reset ──────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(--text);
+      font: 15px/1.5 -apple-system, 'SF Pro Text', system-ui, sans-serif;
+      -webkit-font-smoothing: antialiased; }
+    a { color: var(--blue); text-decoration: none; }
+    button { font: inherit; cursor: pointer; border: none; background: none; color: inherit; }
+    input, select { font: inherit; color: inherit; background: none; border: none; outline: none; }
+
+    /* ── Shell ──────────────────────────────────────── */
+    #app {
+      display: flex;
+      flex-direction: column;
+      height: 100dvh;
+      padding-top: var(--safe-top);
+    }
+
+    /* ── Top bar ────────────────────────────────────── */
+    #topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 16px;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+    #topbar h1 { font-size: 17px; font-weight: 700; letter-spacing: -0.02em; }
+    #topbar h1 span { color: var(--blue); }
+    .live-dot {
+      width: 7px; height: 7px; border-radius: 50%;
+      background: var(--green); display: inline-block; margin-right: 6px;
+      animation: pulse 2s ease-in-out infinite;
+    }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.3} }
+    #train-count { font-size: 12px; color: var(--muted); }
+
+    /* ── Pages ──────────────────────────────────────── */
+    #pages { flex: 1; overflow: hidden; position: relative; }
+    .page {
+      position: absolute; inset: 0;
+      overflow-y: auto; overflow-x: hidden;
+      display: none;
+      -webkit-overflow-scrolling: touch;
+    }
+    .page.active { display: block; }
+    #page-map { padding: 0; }
+
+    /* ── Bottom nav ─────────────────────────────────── */
+    #bottomnav {
+      display: flex;
+      height: calc(var(--nav) + var(--safe-bot));
+      padding-bottom: var(--safe-bot);
+      background: var(--surface);
+      border-top: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+    .nav-btn {
+      flex: 1; display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      gap: 3px; padding: 6px 4px;
+      color: var(--muted); font-size: 10px; font-weight: 500;
+      transition: color .15s; position: relative;
+    }
+    .nav-btn.active { color: var(--blue); }
+    .nav-btn svg { width: 22px; height: 22px; stroke: currentColor;
+      fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+    .badge {
+      position: absolute; top: 4px; right: calc(50% - 18px);
+      background: var(--red); color: #fff; font-size: 9px; font-weight: 700;
+      border-radius: 99px; padding: 1px 4px; min-width: 15px; text-align: center;
+    }
+
+    /* ── Map ────────────────────────────────────────── */
+    #map { width: 100%; height: 100%; background: #0d1b2a; }
+    .leaflet-tile { filter: invert(1) hue-rotate(200deg) brightness(.85) saturate(.6); }
+    .leaflet-control-zoom a {
+      background: var(--card) !important; color: var(--text) !important;
+      border-color: var(--border) !important;
+    }
+    .leaflet-control-attribution {
+      background: rgba(13,17,23,.8) !important; color: var(--muted) !important; font-size: 9px !important;
+    }
+    .leaflet-popup-content-wrapper {
+      background: var(--card) !important; border: 1px solid var(--border) !important;
+      border-radius: 14px !important; color: var(--text) !important;
+      box-shadow: 0 8px 32px rgba(0,0,0,.6) !important;
+    }
+    .leaflet-popup-tip { background: var(--card) !important; }
+    .leaflet-popup-content { margin: 14px !important; }
+
+    /* ── Map overlay cards ──────────────────────────── */
+    #map-stats {
+      position: absolute; top: 10px; left: 10px; z-index: 1000;
+      background: rgba(13,17,23,.85); backdrop-filter: blur(8px);
+      border: 1px solid var(--border); border-radius: 10px;
+      padding: 6px 12px; font-size: 12px; color: var(--muted);
+      display: flex; align-items: center; gap: 6px;
+    }
+
+    /* ── Content pages padding ──────────────────────── */
+    .page-inner { padding: 16px; display: flex; flex-direction: column; gap: 14px; }
+    .page-title { font-size: 22px; font-weight: 700; letter-spacing: -0.02em; }
+    .page-sub { font-size: 13px; color: var(--muted); margin-top: 2px; }
+
+    /* ── Cards ──────────────────────────────────────── */
+    .card {
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: 14px; padding: 14px;
+    }
+    .card + .card { margin-top: 10px; }
+
+    /* ── Train list ─────────────────────────────────── */
+    .train-item {
+      display: flex; align-items: center; gap: 12px;
+      padding: 12px 16px; background: var(--card);
+      border-bottom: 1px solid var(--border);
+    }
+    .train-item:last-child { border-bottom: none; }
+    .train-num {
+      font-family: 'SF Mono', monospace; font-weight: 700; font-size: 15px;
+      min-width: 60px; color: var(--blue);
+    }
+    .train-info { flex: 1; }
+    .train-info .name { font-size: 14px; font-weight: 600; }
+    .train-info .meta { font-size: 12px; color: var(--muted); margin-top: 1px; }
+    .train-right { display: flex; flex-direction: column; align-items: flex-end; gap: 3px; }
+    .pill {
+      font-size: 10px; font-weight: 700; padding: 2px 7px;
+      border-radius: 99px; white-space: nowrap;
+    }
+    .pill-green { background: rgba(63,185,80,.15); color: var(--green); }
+    .pill-red   { background: rgba(248,81,73,.15);  color: var(--red); }
+    .pill-amber { background: rgba(210,153,34,.15); color: var(--amber); }
+    .pill-blue  { background: rgba(88,166,255,.15); color: var(--blue); }
+
+    /* ── Timetable ──────────────────────────────────── */
+    .tt-row {
+      display: grid; grid-template-columns: 20px 1fr auto;
+      align-items: start; gap: 10px; padding: 8px 0;
+      color: var(--muted); font-size: 14px;
+    }
+    .tt-row.current { color: var(--text); }
+    .tt-row.past { opacity: .4; }
+    .tt-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--border); margin-top: 5px; }
+    .tt-row.current .tt-dot { background: var(--blue); box-shadow: 0 0 6px var(--blue); }
+    .tt-station { font-weight: 600; font-family: 'SF Mono', monospace; }
+    .tt-time { font-family: 'SF Mono', monospace; font-weight: 600; text-align: right; }
+    .tt-delay { font-size: 11px; font-weight: 700; color: var(--red); }
+
+    /* ── Composition ────────────────────────────────── */
+    .consist { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
+    .consist-item {
+      padding: 4px 10px; border-radius: 7px; font-size: 12px; font-weight: 600;
+      border: 1px solid var(--border);
+    }
+    .consist-loco { background: rgba(88,166,255,.12); color: var(--blue); border-color: rgba(88,166,255,.3); }
+    .consist-wagon { background: var(--surface); color: var(--muted); }
+
+    /* ── Watchers ───────────────────────────────────── */
+    .watcher-card {
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: 14px; padding: 14px; margin-bottom: 10px;
+    }
+    .watcher-card.paused { opacity: .55; }
+    .watcher-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
+    .watcher-name { font-size: 15px; font-weight: 700; }
+    .watcher-type { font-size: 11px; color: var(--muted); margin-top: 1px; }
+    .watcher-cond {
+      margin-top: 8px; padding: 7px 10px;
+      background: var(--surface); border-radius: 8px;
+      font-size: 13px; color: var(--muted);
+    }
+    .watcher-cond strong { color: var(--text); }
+    .watcher-footer { margin-top: 10px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .btn-row { display: flex; gap: 8px; }
+
+    /* ── Buttons ────────────────────────────────────── */
+    .btn {
+      display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+      padding: 9px 18px; border-radius: 10px; font-size: 14px; font-weight: 600;
+      transition: opacity .15s; white-space: nowrap;
+    }
+    .btn:active { opacity: .7; }
+    .btn-primary { background: var(--blue); color: #000; }
+    .btn-outline { background: transparent; border: 1px solid var(--border); color: var(--text); }
+    .btn-sm { padding: 6px 12px; font-size: 13px; border-radius: 8px; }
+    .btn-icon {
+      width: 32px; height: 32px; border-radius: 8px;
+      border: 1px solid var(--border); color: var(--muted);
+      display: inline-flex; align-items: center; justify-content: center; font-size: 15px;
+    }
+    .btn-icon:hover { color: var(--red); border-color: var(--red); background: rgba(248,81,73,.1); }
+
+    /* ── Forms ──────────────────────────────────────── */
+    .form { display: flex; flex-direction: column; gap: 14px; }
+    .field { display: flex; flex-direction: column; gap: 5px; }
+    .field label {
+      font-size: 11px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: .06em; color: var(--muted);
+    }
+    .input-box {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 10px; padding: 10px 13px; font-size: 15px; color: var(--text);
+      width: 100%; -webkit-appearance: none;
+      transition: border-color .15s;
+    }
+    .input-box:focus { border-color: var(--blue); }
+    .input-box::placeholder { color: var(--muted); }
+    .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+    /* ── Sheet (bottom modal) ───────────────────────── */
+    #sheet-overlay {
+      position: fixed; inset: 0; background: rgba(0,0,0,.6);
+      z-index: 5000; display: none; align-items: flex-end;
+    }
+    #sheet-overlay.open { display: flex; }
+    #sheet {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 20px 20px 0 0; padding: 16px;
+      width: 100%; max-height: 90dvh; overflow-y: auto;
+      padding-bottom: calc(16px + var(--safe-bot));
+      display: flex; flex-direction: column; gap: 14px;
+    }
+    .sheet-handle {
+      width: 36px; height: 4px; border-radius: 2px;
+      background: var(--border); margin: 0 auto 6px;
+    }
+    .sheet-title { font-size: 18px; font-weight: 700; }
+
+    /* ── Search ─────────────────────────────────────── */
+    .search-wrap { position: relative; }
+    .search-wrap svg {
+      position: absolute; left: 12px; top: 50%; transform: translateY(-50%);
+      width: 16px; height: 16px; stroke: var(--muted); fill: none;
+      stroke-width: 2; stroke-linecap: round;
+    }
+    .search-wrap .input-box { padding-left: 38px; }
+
+    /* ── Photo ──────────────────────────────────────── */
+    .photo-card {
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: 14px; padding: 14px; margin-bottom: 10px;
+    }
+    .photo-card h3 { font-size: 15px; font-weight: 700; }
+    .photo-meta { font-size: 12px; color: var(--muted); margin-top: 3px; font-family: 'SF Mono', monospace; }
+    .photo-equip { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+    .equip-tag {
+      font-size: 12px; padding: 3px 9px;
+      background: var(--surface); border: 1px solid var(--border); border-radius: 7px; color: var(--muted);
+    }
+    .photo-notes {
+      margin-top: 8px; padding: 8px 10px; font-size: 13px; color: var(--muted);
+      background: var(--surface); border-radius: 8px; border-left: 3px solid var(--blue);
+    }
+    .photo-alert-row {
+      margin-top: 8px; font-size: 12px; color: var(--muted);
+      display: flex; gap: 8px; flex-wrap: wrap;
+    }
+
+    /* ── Alerts ─────────────────────────────────────── */
+    .alert-item {
+      display: flex; gap: 12px; align-items: flex-start;
+      padding: 12px 16px; background: var(--card);
+      border-bottom: 1px solid var(--border);
+    }
+    .alert-item.unread { border-left: 3px solid var(--blue); }
+    .alert-icon { font-size: 20px; flex-shrink: 0; }
+    .alert-title { font-size: 14px; font-weight: 700; }
+    .alert-body { font-size: 13px; color: var(--muted); margin-top: 2px; }
+    .alert-time { font-size: 11px; color: var(--muted); margin-top: 4px; }
+
+    /* ── Empty state ────────────────────────────────── */
+    .empty {
+      display: flex; flex-direction: column; align-items: center;
+      justify-content: center; padding: 60px 20px; gap: 10px; text-align: center;
+    }
+    .empty-icon { font-size: 44px; }
+    .empty h3 { font-size: 17px; font-weight: 700; }
+    .empty p { font-size: 14px; color: var(--muted); max-width: 260px; }
+
+    /* ── Train detail ───────────────────────────────── */
+    #detail-view {
+      position: fixed; inset: 0; background: var(--bg);
+      z-index: 2000; overflow-y: auto;
+      padding-top: var(--safe-top);
+      display: none; flex-direction: column;
+    }
+    #detail-view.open { display: flex; }
+    #detail-topbar {
+      display: flex; align-items: center; gap: 12px;
+      padding: 10px 16px; background: var(--surface);
+      border-bottom: 1px solid var(--border); flex-shrink: 0; position: sticky; top: 0; z-index: 1;
+    }
+    #detail-content { padding: 16px; display: flex; flex-direction: column; gap: 16px;
+      padding-bottom: 32px; }
+
+    /* ── Scrollbar ──────────────────────────────────── */
+    ::-webkit-scrollbar { width: 4px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+  </style>
+</head>
+<body>
+
+<div id="app">
+  <!-- Top bar -->
+  <div id="topbar">
+    <h1>Rail<span>Watch</span> 🚂</h1>
+    <div id="train-count"><span class="live-dot"></span><span id="count-text">ladataan…</span></div>
+  </div>
+
+  <!-- Pages -->
+  <div id="pages">
+
+    <!-- MAP -->
+    <div id="page-map" class="page active">
+      <div id="map-stats">
+        <span class="live-dot"></span>
+        <span id="map-count">–</span> junaa liikkeessä
+      </div>
+      <div id="map"></div>
+    </div>
+
+    <!-- TRAINS LIST -->
+    <div id="page-trains" class="page">
+      <div class="page-inner">
+        <div>
+          <div class="page-title">Junat</div>
+          <div class="page-sub" id="trains-sub">–</div>
+        </div>
+        <div class="search-wrap">
+          <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+          <input class="input-box" id="train-search" placeholder="Hae junanumerolla tai tyypillä…" />
+        </div>
+        <div style="display:flex;gap:8px;">
+          <button class="btn btn-outline btn-sm" id="filter-all" onclick="setFilter('all')">Kaikki</button>
+          <button class="btn btn-outline btn-sm" id="filter-live" onclick="setFilter('live')">Liikkeessä</button>
+          <button class="btn btn-outline btn-sm" id="filter-late" onclick="setFilter('late')">Myöhässä</button>
+        </div>
+        <div id="trains-list" style="border-radius:14px;overflow:hidden;border:1px solid var(--border);">
+          <div class="empty"><div class="empty-icon">🚂</div><p>Ladataan junatietoja…</p></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- WATCHERS -->
+    <div id="page-watchers" class="page">
+      <div class="page-inner">
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;">
+          <div>
+            <div class="page-title">Vahdit</div>
+            <div class="page-sub" id="watcher-sub">0 aktiivista</div>
+          </div>
+          <button class="btn btn-primary btn-sm" onclick="openWatcherSheet()">+ Uusi vahti</button>
+        </div>
+        <div id="watchers-list">
+          <div class="empty">
+            <div class="empty-icon">🔔</div>
+            <h3>Ei vahteja</h3>
+            <p>Luo vahti saadaksesi ilmoituksen kun tietty veturi tai juna ilmestyy.</p>
+            <button class="btn btn-primary" style="margin-top:8px" onclick="openWatcherSheet()">Luo ensimmäinen vahti</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- PHOTOGRAPHY -->
+    <div id="page-photo" class="page">
+      <div class="page-inner">
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;">
+          <div>
+            <div class="page-title">Kuvauskohteet</div>
+            <div class="page-sub" id="photo-sub">0 tallennettua kohdetta</div>
+          </div>
+          <button class="btn btn-primary btn-sm" onclick="openPhotoSheet()">+ Lisää</button>
+        </div>
+        <div id="photo-list">
+          <div class="empty">
+            <div class="empty-icon">📸</div>
+            <h3>Ei kuvauspaikkoja</h3>
+            <p>Tallenna suosikkipaikkasi ja saa ennakkovaroitus kun seuraamasi juna lähestyy.</p>
+            <button class="btn btn-primary" style="margin-top:8px" onclick="openPhotoSheet()">Lisää paikka</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ALERTS -->
+    <div id="page-alerts" class="page">
+      <div class="page-inner">
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;">
+          <div>
+            <div class="page-title">Hälytykset</div>
+            <div class="page-sub" id="alerts-sub">0 lukematonta</div>
+          </div>
+          <button class="btn btn-outline btn-sm" onclick="clearAlerts()">Merkitse luetuksi</button>
+        </div>
+      </div>
+      <div id="alerts-list">
+        <div class="empty">
+          <div class="empty-icon">🔔</div>
+          <h3>Ei hälytyksiä</h3>
+          <p>Luo vahteja saadaksesi ilmoituksia mielenkiintoisista junista.</p>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /pages -->
+
+  <!-- Bottom nav -->
+  <nav id="bottomnav">
+    <button class="nav-btn active" data-page="map" onclick="showPage('map',this)">
+      <svg viewBox="0 0 24 24"><polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21"/><line x1="9" y1="3" x2="9" y2="18"/><line x1="15" y1="6" x2="15" y2="21"/></svg>
+      Kartta
+    </button>
+    <button class="nav-btn" data-page="trains" onclick="showPage('trains',this)">
+      <svg viewBox="0 0 24 24"><rect x="4" y="3" width="16" height="16" rx="3"/><path d="M4 11h16M12 3v8M8 19l-2 2M16 19l2 2"/><circle cx="8.5" cy="15.5" r="1.5"/><circle cx="15.5" cy="15.5" r="1.5"/></svg>
+      Junat
+    </button>
+    <button class="nav-btn" data-page="watchers" onclick="showPage('watchers',this)">
+      <svg viewBox="0 0 24 24"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+      Vahdit
+    </button>
+    <button class="nav-btn" data-page="photo" onclick="showPage('photo',this)">
+      <svg viewBox="0 0 24 24"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+      Kuvaus
+    </button>
+    <button class="nav-btn" data-page="alerts" onclick="showPage('alerts',this)">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+      <span id="alert-badge" class="badge" style="display:none">0</span>
+      Hälytykset
+    </button>
+  </nav>
+</div>
+
+<!-- Train detail overlay -->
+<div id="detail-view">
+  <div id="detail-topbar">
+    <button class="btn btn-outline btn-sm" onclick="closeDetail()">← Takaisin</button>
+    <div id="detail-badge" class="pill pill-blue" style="font-size:15px;padding:4px 12px"></div>
+    <div id="detail-status" style="margin-left:auto;display:flex;gap:6px;"></div>
+  </div>
+  <div id="detail-content"></div>
+</div>
+
+<!-- Sheet overlay (watchers + photo forms) -->
+<div id="sheet-overlay" onclick="closeSheet()">
+  <div id="sheet" onclick="event.stopPropagation()">
+    <div class="sheet-handle"></div>
+    <div id="sheet-content"></div>
+  </div>
+</div>
+
+<script>
+// ============================================================
+// RailWatch — App Logic
+// ============================================================
+
+const API = 'https://rata.digitraffic.fi/api/v1';
+
+// ── State ────────────────────────────────────────────────────
+const state = {
+  trains: [],
+  locations: new Map(),  // "num:date" → {lat,lng,speed}
+  stations: new Map(),   // shortCode → station
+  watchers: JSON.parse(localStorage.getItem('watchers') || '[]'),
+  photoSpots: JSON.parse(localStorage.getItem('photoSpots') || '[]'),
+  alerts: JSON.parse(localStorage.getItem('alerts') || '[]'),
+  filter: 'all',
+  pollTimer: null,
+  locationTimer: null,
+};
+
+// ── Map ──────────────────────────────────────────────────────
+const map = L.map('map', { zoomControl: false, attributionControl: true })
+  .setView([62.5, 26.0], 6);
+
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  attribution: '© OpenStreetMap',
+  maxZoom: 19,
+}).addTo(map);
+
+L.control.zoom({ position: 'topright' }).addTo(map);
+
+const markers = new Map();  // trainKey → L.marker
+
+function trainIcon(cat, selected) {
+  const colors = { 'Long-distance':'#58a6ff', 'Commuter':'#3fb950', 'Cargo':'#7d8590', 'Other':'#a371f7' };
+  const c = selected ? '#d29922' : (colors[cat] || colors.Other);
+  const s = selected ? 14 : 9;
+  return L.divIcon({
+    className: '',
+    html: `<div style="width:${s}px;height:${s}px;background:${c};border:2px solid ${selected?'#fff':'rgba(255,255,255,.5)'};border-radius:50%;box-shadow:0 0 ${selected?8:4}px ${c}99"></div>`,
+    iconSize: [s, s], iconAnchor: [s/2, s/2],
+  });
+}
+
+// ── Navigation ───────────────────────────────────────────────
+function showPage(name, btn) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('page-' + name).classList.add('active');
+  btn.classList.add('active');
+  if (name === 'map') setTimeout(() => map.invalidateSize(), 50);
+  if (name === 'trains') renderTrainList();
+  if (name === 'watchers') renderWatchers();
+  if (name === 'photo') renderPhotoSpots();
+  if (name === 'alerts') renderAlerts();
+}
+
+// ── Digitraffic API ──────────────────────────────────────────
+async function fetchJSON(url) {
+  const r = await fetch(url, { headers: { 'Digitraffic-User': 'RailWatch/1.0' } });
+  if (!r.ok) throw new Error(`HTTP ${r.status}`);
+  return r.json();
+}
+
+async function loadStations() {
+  try {
+    const data = await fetchJSON(`${API}/metadata/stations`);
+    data.forEach(s => state.stations.set(s.stationShortCode, s));
+  } catch(e) { console.warn('Stations load failed', e); }
+}
+
+async function loadTrains() {
+  try {
+    const today = new Date().toISOString().slice(0,10);
+    const data = await fetchJSON(`${API}/live-trains?departure_date=${today}&include_nonstopping=false`);
+    state.trains = data;
+    const running = data.filter(t => t.runningCurrently).length;
+    document.getElementById('count-text').textContent = running + ' junaa';
+    document.getElementById('trains-sub').textContent = running + ' liikkeessä · ' + data.length + ' yhteensä';
+    checkWatchers(data);
+  } catch(e) { console.warn('Trains load failed', e); }
+}
+
+async function loadLocations() {
+  try {
+    const data = await fetchJSON(`${API}/train-locations/latest`);
+    state.locations.clear();
+    data.forEach(loc => {
+      const key = loc.trainNumber + ':' + loc.departureDate;
+      state.locations.set(key, loc);
+    });
+    document.getElementById('map-count').textContent = data.length;
+    updateMapMarkers();
+    checkApproachWatchers();
+  } catch(e) { console.warn('Locations load failed', e); }
+}
+
+// ── Map markers ──────────────────────────────────────────────
+function updateMapMarkers() {
+  const trainMap = new Map(state.trains.map(t => [t.trainNumber+':'+t.departureDate, t]));
+
+  // Remove stale markers
+  for (const [key, marker] of markers) {
+    if (!state.locations.has(key)) { map.removeLayer(marker); markers.delete(key); }
+  }
+
+  for (const [key, loc] of state.locations) {
+    const train = trainMap.get(key);
+    const cat = train?.trainCategory || 'Other';
+
+    if (markers.has(key)) {
+      markers.get(key).setLatLng([loc.latitude, loc.longitude]);
+    } else {
+      const marker = L.marker([loc.latitude, loc.longitude], { icon: trainIcon(cat, false) })
+        .addTo(map)
+        .on('click', () => openDetail(key));
+      markers.set(key, marker);
+    }
+
+    // Update popup if open
+    const marker = markers.get(key);
+    if (marker.getPopup()?.isOpen()) {
+      marker.getPopup().setContent(buildPopupHTML(key, loc, train));
+    }
+  }
+}
+
+function buildPopupHTML(key, loc, train) {
+  const num = train?.trainNumber || key.split(':')[0];
+  const type = train?.trainType || '?';
+  const delay = getDelay(train);
+  const nextStop = getNextStop(train);
+  const loco = train?.journeySections?.[0]?.locomotives?.[0]?.locomotiveType || '';
+
+  return `
+    <div style="min-width:200px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+        <span style="font-family:monospace;font-weight:700;font-size:16px;color:#58a6ff">${type} ${num}</span>
+        <span style="font-size:13px;color:#7d8590">${Math.round(loc.speed)} km/h</span>
+      </div>
+      ${delay > 2 ? `<div style="font-size:12px;font-weight:700;color:#f85149;margin-bottom:6px">+${delay} min myöhässä</div>` : ''}
+      ${nextStop ? `<div style="font-size:13px;margin-bottom:6px">➤ <strong>${nextStop.code}</strong> ${nextStop.time}</div>` : ''}
+      ${loco ? `<div style="font-size:12px;color:#7d8590;margin-bottom:8px">🚂 ${loco}</div>` : ''}
+      <button onclick="openDetail('${key}')" style="width:100%;padding:7px;background:rgba(88,166,255,.15);border:1px solid rgba(88,166,255,.3);border-radius:8px;color:#58a6ff;font-size:13px;font-weight:600;cursor:pointer">
+        Koko aikataulu →
+      </button>
+    </div>`;
+}
+
+// ── Train detail view ────────────────────────────────────────
+function openDetail(key) {
+  const train = state.trains.find(t => (t.trainNumber+':'+t.departureDate) === key);
+  const loc = state.locations.get(key);
+  if (!train) return;
+
+  const delay = getDelay(train);
+  document.getElementById('detail-badge').textContent = `${train.trainType} ${train.trainNumber}`;
+
+  const statusEl = document.getElementById('detail-status');
+  statusEl.innerHTML = '';
+  if (train.runningCurrently) statusEl.innerHTML += `<span class="pill pill-green">LIVE</span>`;
+  if (train.cancelled) statusEl.innerHTML += `<span class="pill pill-red">PERUTTU</span>`;
+  if (delay > 2) statusEl.innerHTML += `<span class="pill pill-red">+${delay}m</span>`;
+  if (delay < -1) statusEl.innerHTML += `<span class="pill pill-green">${delay}m</span>`;
+
+  // Build composition
+  const locos = train.journeySections?.flatMap(s => s.locomotives || []) || [];
+  const wagons = train.journeySections?.flatMap(s => s.wagons || []) || [];
+  let compHTML = '';
+  if (locos.length || wagons.length) {
+    compHTML = `
+      <div class="card">
+        <div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:8px">Kalusto</div>
+        <div class="consist">
+          ${locos.map(l => `<span class="consist-item consist-loco">${l.locomotiveType} #${l.vehicleNumber}</span>`).join('')}
+          ${wagons.slice(0,6).map(w => `<span class="consist-item consist-wagon">${w.wagonType}</span>`).join('')}
+          ${wagons.length > 6 ? `<span class="consist-item consist-wagon">+${wagons.length-6}</span>` : ''}
+        </div>
+      </div>`;
+  }
+
+  // Build timetable
+  const stops = buildStops(train);
+  const currentIdx = stops.findLastIndex(s => s.actual);
+  const ttRows = stops.map((s, i) => {
+    const cls = i === currentIdx ? 'current' : i < currentIdx ? 'past' : '';
+    const delayStr = s.delay > 0 ? `<span class="tt-delay">+${s.delay}m</span>` : '';
+    return `
+      <div class="tt-row ${cls}">
+        <div class="tt-dot"></div>
+        <div><div class="tt-station">${s.code}</div><div style="font-size:11px;color:var(--muted)">${s.name}</div></div>
+        <div style="text-align:right">${delayStr}<div class="tt-time">${s.time}</div></div>
+      </div>`;
+  }).join('');
+
+  // Speed info
+  const speedHTML = loc ? `
+    <div class="card" style="display:flex;gap:16px">
+      <div style="flex:1;text-align:center">
+        <div style="font-size:24px;font-weight:700;font-family:monospace">${Math.round(loc.speed)}</div>
+        <div style="font-size:11px;color:var(--muted)">km/h</div>
+      </div>
+      <div style="flex:1;text-align:center">
+        <div style="font-size:24px;font-weight:700">${delay > 0 ? '+'+delay : delay < 0 ? delay : '0'}</div>
+        <div style="font-size:11px;color:var(--muted)">min</div>
+      </div>
+      <div style="flex:1;text-align:center">
+        <div style="font-size:24px;font-weight:700">${train.operatorShortCode || '–'}</div>
+        <div style="font-size:11px;color:var(--muted)">operaattori</div>
+      </div>
+    </div>` : '';
+
+  document.getElementById('detail-content').innerHTML = `
+    ${speedHTML}
+    ${compHTML}
+    <div class="card">
+      <div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:8px">Aikataulu</div>
+      ${ttRows}
+    </div>`;
+
+  document.getElementById('detail-view').classList.add('open');
+}
+
+function closeDetail() {
+  document.getElementById('detail-view').classList.remove('open');
+}
+
+// ── Train list ───────────────────────────────────────────────
+let trainFilter = 'all';
+function setFilter(f) {
+  trainFilter = f;
+  ['all','live','late'].forEach(id => {
+    document.getElementById('filter-'+id).className =
+      'btn btn-sm ' + (f === id ? 'btn-primary' : 'btn-outline');
+  });
+  renderTrainList();
+}
+
+function renderTrainList() {
+  const q = document.getElementById('train-search').value.toLowerCase();
+  let list = state.trains;
+  if (trainFilter === 'live') list = list.filter(t => t.runningCurrently && !t.cancelled);
+  if (trainFilter === 'late') list = list.filter(t => getDelay(t) > 3);
+  if (q) list = list.filter(t =>
+    String(t.trainNumber).includes(q) || (t.trainType||'').toLowerCase().includes(q)
+  );
+
+  if (!list.length) {
+    document.getElementById('trains-list').innerHTML =
+      `<div class="empty"><div class="empty-icon">🔍</div><p>Ei tuloksia</p></div>`;
+    return;
+  }
+
+  document.getElementById('trains-list').innerHTML = list.slice(0,100).map(t => {
+    const delay = getDelay(t);
+    const key = t.trainNumber+':'+t.departureDate;
+    const loc = state.locations.get(key);
+    const next = getNextStop(t);
+    return `
+      <div class="train-item" onclick="openDetail('${key}')">
+        <div class="train-num">${t.trainType} ${t.trainNumber}</div>
+        <div class="train-info">
+          <div class="name">${t.trainCategory || ''}</div>
+          <div class="meta">${next ? '➤ '+next.code+' '+next.time : '–'} ${loc ? '· '+Math.round(loc.speed)+' km/h' : ''}</div>
+        </div>
+        <div class="train-right">
+          ${t.cancelled ? '<span class="pill pill-red">PERUTTU</span>' : ''}
+          ${t.runningCurrently && !t.cancelled ? '<span class="pill pill-green">LIVE</span>' : ''}
+          ${delay > 3 ? `<span class="pill pill-red">+${delay}m</span>` : ''}
+          ${delay < -1 ? `<span class="pill pill-amber">${delay}m</span>` : ''}
+        </div>
+      </div>`;
+  }).join('');
+}
+
+document.getElementById('train-search').addEventListener('input', renderTrainList);
+
+// ── Watchers ─────────────────────────────────────────────────
+const LOCO_TYPES = ['Dr16','Sr1','Sr2','Sr3','Sm1','Sm2','Sm3','Sm4','Sm5','Sm6','Sm7','Dv12','Dv15r'];
+const TRAIN_TYPES = ['IC','S','P','T','HDM','HL','HV'];
+const WATCHER_TYPES = {
+  LOCO: '🚂 Veturityyppi', VEHICLE: '🔢 Ajoneuvonumero',
+  TRAIN_NUM: '🚆 Junanumero', TRAIN_TYPE: '🏷️ Junatyyppi',
+  STATION: '🚉 Asema', ROUTE: '🗺️ Reitti', APPROACH: '📍 Lähestyminen',
+};
+
+function saveWatchers() {
+  localStorage.setItem('watchers', JSON.stringify(state.watchers));
+}
+
+function renderWatchers() {
+  const el = document.getElementById('watchers-list');
+  document.getElementById('watcher-sub').textContent =
+    state.watchers.filter(w => w.active).length + ' aktiivista · ' + state.watchers.length + ' yhteensä';
+
+  if (!state.watchers.length) {
+    el.innerHTML = `<div class="empty"><div class="empty-icon">🔔</div><h3>Ei vahteja</h3><p>Luo vahti saadaksesi ilmoituksen kun tietty veturi tai juna ilmestyy.</p><button class="btn btn-primary" style="margin-top:8px" onclick="openWatcherSheet()">Luo ensimmäinen vahti</button></div>`;
+    return;
+  }
+
+  el.innerHTML = state.watchers.map((w, i) => `
+    <div class="watcher-card ${w.active ? '' : 'paused'}">
+      <div class="watcher-header">
+        <div>
+          <div class="watcher-type">${WATCHER_TYPES[w.type] || w.type}</div>
+          <div class="watcher-name">${w.name}</div>
+        </div>
+        <div class="btn-row">
+          <button class="btn-icon" onclick="toggleWatcher(${i})" title="${w.active ? 'Pysäytä' : 'Aktivoi'}">${w.active ? '⏸' : '▶'}</button>
+          <button class="btn-icon" onclick="deleteWatcher(${i})" title="Poista">✕</button>
+        </div>
+      </div>
+      <div class="watcher-cond">${watcherConditionText(w)}</div>
+      <div class="watcher-footer">
+        <span class="pill ${w.active ? 'pill-green' : 'pill-blue'}">${w.active ? 'AKTIIVINEN' : 'PYSÄYTETTY'}</span>
+        ${w.lastTriggered ? `<span style="font-size:11px;color:var(--muted);margin-left:auto">Viimeksi: ${new Date(w.lastTriggered).toLocaleString('fi-FI')}</span>` : ''}
+      </div>
+    </div>`).join('');
+}
+
+function watcherConditionText(w) {
+  switch(w.type) {
+    case 'LOCO': return `Veturityyppi: <strong>${w.locoType}</strong>`;
+    case 'VEHICLE': return `Ajoneuvonumero: <strong>${w.vehicleNum}</strong>`;
+    case 'TRAIN_NUM': return `Junanumero: <strong>${w.trainNum}</strong>`;
+    case 'TRAIN_TYPE': return `Junatyyppi: <strong>${w.trainType}</strong>`;
+    case 'STATION': return `Asema: <strong>${w.stationCode}</strong>`;
+    case 'ROUTE': return `Reitti: <strong>${w.origin} → ${w.dest}</strong>`;
+    case 'APPROACH': return `Säde: <strong>${w.radiusKm} km</strong>, varoitus <strong>${w.advanceMin} min</strong> ennen`;
+    default: return JSON.stringify(w);
+  }
+}
+
+function toggleWatcher(i) {
+  state.watchers[i].active = !state.watchers[i].active;
+  saveWatchers(); renderWatchers();
+}
+
+function deleteWatcher(i) {
+  state.watchers.splice(i, 1);
+  saveWatchers(); renderWatchers();
+}
+
+function openWatcherSheet() {
+  document.getElementById('sheet-content').innerHTML = buildWatcherForm();
+  document.getElementById('sheet-overlay').classList.add('open');
+  setTimeout(() => document.getElementById('sheet-overlay').scrollTop = 0, 10);
+}
+
+function buildWatcherForm() {
+  return `
+    <div class="sheet-title">Uusi vahti</div>
+    <div class="form" id="watcher-form">
+      <div class="field">
+        <label>Nimi</label>
+        <input class="input-box" id="w-name" placeholder="esim. Dr16 Lahdessa" />
+      </div>
+      <div class="field">
+        <label>Tyyppi</label>
+        <select class="input-box" id="w-type" onchange="updateWatcherFields()">
+          ${Object.entries(WATCHER_TYPES).map(([v,l]) => `<option value="${v}">${l}</option>`).join('')}
+        </select>
+      </div>
+      <div id="w-fields"></div>
+      <div class="field">
+        <label>Jäähdytysaika (min)</label>
+        <input class="input-box" id="w-cooldown" type="number" value="60" min="1" max="1440" />
+      </div>
+      <div style="display:flex;gap:10px;padding-top:4px">
+        <button class="btn btn-outline" style="flex:1" onclick="closeSheet()">Peruuta</button>
+        <button class="btn btn-primary" style="flex:1" onclick="saveWatcher()">Tallenna</button>
+      </div>
+    </div>`;
+}
+
+function updateWatcherFields() {
+  const type = document.getElementById('w-type').value;
+  const stationOptions = Array.from(state.stations.values())
+    .filter(s => s.passengerTraffic)
+    .sort((a,b) => a.stationName.localeCompare(b.stationName))
+    .map(s => `<option value="${s.stationShortCode}">${s.stationName} (${s.stationShortCode})</option>`)
+    .join('');
+
+  const fields = {
+    LOCO: `<div class="field"><label>Veturityyppi</label><select class="input-box" id="w-loco">${LOCO_TYPES.map(t=>`<option>${t}</option>`).join('')}</select></div>`,
+    VEHICLE: `<div class="field"><label>Ajoneuvonumero</label><input class="input-box" id="w-vnum" placeholder="esim. 94101" /></div>`,
+    TRAIN_NUM: `<div class="field"><label>Junanumero</label><input class="input-box" id="w-tnum" type="number" placeholder="esim. 63" /></div>`,
+    TRAIN_TYPE: `<div class="field"><label>Junatyyppi</label><select class="input-box" id="w-ttype">${TRAIN_TYPES.map(t=>`<option>${t}</option>`).join('')}</select></div>`,
+    STATION: `<div class="field"><label>Asema</label><select class="input-box" id="w-station"><option value="">Valitse asema…</option>${stationOptions}</select></div>`,
+    ROUTE: `<div class="field"><label>Lähtöasema</label><select class="input-box" id="w-origin"><option value="">Valitse…</option>${stationOptions}</select></div><div class="field"><label>Määränpää</label><select class="input-box" id="w-dest"><option value="">Valitse…</option>${stationOptions}</select></div>`,
+    APPROACH: `<div class="row2"><div class="field"><label>Leveysaste</label><input class="input-box" id="w-lat" type="number" step=".0001" placeholder="60.9828" /></div><div class="field"><label>Pituusaste</label><input class="input-box" id="w-lng" type="number" step=".0001" placeholder="25.6563" /></div></div><div class="row2"><div class="field"><label>Säde (km)</label><input class="input-box" id="w-radius" type="number" value="10" /></div><div class="field"><label>Varoitus (min)</label><input class="input-box" id="w-advance" type="number" value="15" /></div></div>`,
+  };
+  document.getElementById('w-fields').innerHTML = fields[type] || '';
+}
+
+function saveWatcher() {
+  const name = document.getElementById('w-name').value.trim();
+  const type = document.getElementById('w-type').value;
+  if (!name) { alert('Anna vahdille nimi'); return; }
+
+  const w = { id: Date.now(), name, type, active: true,
+    cooldownMin: Number(document.getElementById('w-cooldown').value) };
+
+  const g = id => document.getElementById(id)?.value;
+  if (type==='LOCO') w.locoType = g('w-loco');
+  if (type==='VEHICLE') w.vehicleNum = g('w-vnum');
+  if (type==='TRAIN_NUM') w.trainNum = Number(g('w-tnum'));
+  if (type==='TRAIN_TYPE') w.trainType = g('w-ttype');
+  if (type==='STATION') w.stationCode = g('w-station');
+  if (type==='ROUTE') { w.origin = g('w-origin'); w.dest = g('w-dest'); }
+  if (type==='APPROACH') {
+    w.lat = Number(g('w-lat')); w.lng = Number(g('w-lng'));
+    w.radiusKm = Number(g('w-radius')); w.advanceMin = Number(g('w-advance'));
+  }
+
+  state.watchers.push(w);
+  saveWatchers(); closeSheet(); renderWatchers();
+}
+
+// ── Watcher evaluation ───────────────────────────────────────
+function checkWatchers(trains) {
+  for (const w of state.watchers) {
+    if (!w.active) continue;
+    if (w.lastTriggered && Date.now() - w.lastTriggered < w.cooldownMin * 60000) continue;
+
+    for (const train of trains) {
+      if (evalWatcher(w, train)) {
+        triggerAlert(w, train);
+        break;
+      }
+    }
+  }
+}
+
+function evalWatcher(w, train) {
+  const locos = train.journeySections?.flatMap(s => s.locomotives||[]) || [];
+  const stops = train.timetableRows || [];
+
+  switch(w.type) {
+    case 'LOCO': return locos.some(l => l.locomotiveType?.toUpperCase() === w.locoType?.toUpperCase());
+    case 'VEHICLE': return locos.some(l => l.vehicleNumber === w.vehicleNum);
+    case 'TRAIN_NUM': return train.trainNumber === Number(w.trainNum);
+    case 'TRAIN_TYPE': return train.trainType === w.trainType;
+    case 'STATION': return stops.some(s => s.stationShortCode === w.stationCode && s.actualTime);
+    case 'ROUTE': {
+      const codes = stops.map(s => s.stationShortCode);
+      return codes.indexOf(w.origin) !== -1 && codes.indexOf(w.dest) > codes.indexOf(w.origin);
+    }
+    default: return false;
+  }
+}
+
+function checkApproachWatchers() {
+  const approachWatchers = state.watchers.filter(w => w.active && w.type === 'APPROACH');
+  if (!approachWatchers.length) return;
+
+  for (const w of approachWatchers) {
+    if (w.lastTriggered && Date.now() - w.lastTriggered < w.cooldownMin * 60000) continue;
+
+    for (const [key, loc] of state.locations) {
+      const dist = haversine(loc.latitude, loc.longitude, w.lat, w.lng);
+      if (dist <= w.radiusKm) {
+        const etaMin = Math.round((dist / (loc.speed || 80)) * 60);
+        if (etaMin <= w.advanceMin) {
+          const train = state.trains.find(t => (t.trainNumber+':'+t.departureDate) === key);
+          triggerAlert(w, train, `${etaMin} min päässä kohteestasi`);
+          break;
+        }
+      }
+    }
+  }
+}
+
+function haversine(lat1, lng1, lat2, lng2) {
+  const R = 6371, toR = d => d * Math.PI / 180;
+  const dLat = toR(lat2-lat1), dLng = toR(lng2-lng1);
+  const a = Math.sin(dLat/2)**2 + Math.cos(toR(lat1))*Math.cos(toR(lat2))*Math.sin(dLng/2)**2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+}
+
+function triggerAlert(watcher, train, extraMsg) {
+  const trainLabel = train ? `${train.trainType} ${train.trainNumber}` : 'Juna';
+  const body = extraMsg || `Vahti "${watcher.name}" laukaisi`;
+
+  const alert = {
+    id: Date.now(), watcherName: watcher.name, type: watcher.type,
+    title: `🔔 ${trainLabel}`, body,
+    trainKey: train ? train.trainNumber+':'+train.departureDate : null,
+    time: new Date().toISOString(), read: false,
+  };
+
+  state.alerts.unshift(alert);
+  if (state.alerts.length > 100) state.alerts.pop();
+  localStorage.setItem('alerts', JSON.stringify(state.alerts));
+
+  watcher.lastTriggered = Date.now();
+  saveWatchers();
+  updateAlertBadge();
+
+  // Native notification if permitted
+  if (Notification.permission === 'granted') {
+    new Notification(alert.title, { body: alert.body, icon: 'icon-192.png', tag: 'railwatch-'+watcher.id });
+  }
+}
+
+function updateAlertBadge() {
+  const unread = state.alerts.filter(a => !a.read).length;
+  const badge = document.getElementById('alert-badge');
+  badge.textContent = unread;
+  badge.style.display = unread > 0 ? 'block' : 'none';
+  if (document.querySelector('.nav-btn[data-page="alerts"]')) {
+    document.getElementById('alerts-sub').textContent = unread + ' lukematonta';
+  }
+}
+
+// ── Alerts ───────────────────────────────────────────────────
+function renderAlerts() {
+  const el = document.getElementById('alerts-list');
+  document.getElementById('alerts-sub').textContent = state.alerts.filter(a=>!a.read).length + ' lukematonta';
+
+  if (!state.alerts.length) {
+    el.innerHTML = `<div class="empty"><div class="empty-icon">🔔</div><h3>Ei hälytyksiä</h3><p>Luo vahteja saadaksesi ilmoituksia.</p></div>`;
+    return;
+  }
+
+  const icons = { LOCO:'🚂', VEHICLE:'🔢', TRAIN_NUM:'🚆', TRAIN_TYPE:'🏷️', STATION:'🚉', ROUTE:'🗺️', APPROACH:'📍' };
+  el.innerHTML = state.alerts.map(a => `
+    <div class="alert-item ${a.read ? '' : 'unread'}" onclick="markRead('${a.id}')">
+      <div class="alert-icon">${icons[a.type] || '🔔'}</div>
+      <div style="flex:1">
+        <div class="alert-title">${a.title}</div>
+        <div class="alert-body">${a.body}</div>
+        <div class="alert-time">${timeAgo(a.time)}</div>
+      </div>
+      ${!a.read ? '<div style="width:8px;height:8px;border-radius:50%;background:var(--blue);flex-shrink:0;margin-top:6px"></div>' : ''}
+    </div>`).join('');
+}
+
+function markRead(id) {
+  const a = state.alerts.find(x => String(x.id) === String(id));
+  if (a) { a.read = true; localStorage.setItem('alerts', JSON.stringify(state.alerts)); }
+  updateAlertBadge(); renderAlerts();
+}
+
+function clearAlerts() {
+  state.alerts.forEach(a => a.read = true);
+  localStorage.setItem('alerts', JSON.stringify(state.alerts));
+  updateAlertBadge(); renderAlerts();
+}
+
+function timeAgo(iso) {
+  const s = Math.floor((Date.now() - new Date(iso)) / 1000);
+  if (s < 60) return 'juuri nyt';
+  if (s < 3600) return Math.floor(s/60) + ' min sitten';
+  if (s < 86400) return Math.floor(s/3600) + ' t sitten';
+  return new Date(iso).toLocaleString('fi-FI');
+}
+
+// ── Photo spots ──────────────────────────────────────────────
+function savePhotoSpots() {
+  localStorage.setItem('photoSpots', JSON.stringify(state.photoSpots));
+}
+
+function renderPhotoSpots() {
+  const el = document.getElementById('photo-list');
+  document.getElementById('photo-sub').textContent = state.photoSpots.length + ' tallennettua kohdetta';
+
+  if (!state.photoSpots.length) {
+    el.innerHTML = `<div class="empty"><div class="empty-icon">📸</div><h3>Ei kuvauspaikkoja</h3><p>Tallenna suosikkipaikkasi.</p><button class="btn btn-primary" style="margin-top:8px" onclick="openPhotoSheet()">Lisää paikka</button></div>`;
+    return;
+  }
+
+  el.innerHTML = state.photoSpots.map((s, i) => `
+    <div class="photo-card">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between">
+        <h3>${s.name}</h3>
+        <button class="btn-icon" onclick="deletePhotoSpot(${i})">✕</button>
+      </div>
+      <div class="photo-meta">📍 ${s.lat.toFixed(4)}, ${s.lng.toFixed(4)}</div>
+      ${s.description ? `<p style="font-size:13px;color:var(--muted);margin-top:6px">${s.description}</p>` : ''}
+      ${s.equipment?.length ? `<div class="photo-equip">${s.equipment.map(e => `<span class="equip-tag">${e}</span>`).join('')}</div>` : ''}
+      ${s.notes ? `<div class="photo-notes">${s.notes}</div>` : ''}
+      <div class="photo-alert-row">
+        <span>📡 Hälytys ${s.radiusKm || 10} km säteellä</span>
+        <span>·</span>
+        <span>⏱ ${s.advanceMin || 10} min ennakkoon</span>
+        ${s.watchTrains ? `<span>· Junat: ${s.watchTrains}</span>` : ''}
+      </div>
+    </div>`).join('');
+}
+
+function deletePhotoSpot(i) {
+  state.photoSpots.splice(i, 1);
+  savePhotoSpots(); renderPhotoSpots();
+}
+
+function openPhotoSheet() {
+  document.getElementById('sheet-content').innerHTML = `
+    <div class="sheet-title">Uusi kuvauskohde</div>
+    <div class="form">
+      <div class="field"><label>Nimi</label><input class="input-box" id="p-name" placeholder="esim. Hakosilta" /></div>
+      <div class="row2">
+        <div class="field"><label>Leveysaste</label><input class="input-box" id="p-lat" type="number" step=".000001" placeholder="60.9828" /></div>
+        <div class="field"><label>Pituusaste</label><input class="input-box" id="p-lng" type="number" step=".000001" placeholder="25.6563" /></div>
+      </div>
+      <button class="btn btn-outline btn-sm" onclick="useGPS()">📍 Käytä nykyistä sijaintia</button>
+      <div class="field"><label>Kuvaus</label><input class="input-box" id="p-desc" placeholder="esim. Kaarre km 124, hyvä laajakuvaan" /></div>
+      <div class="field"><label>Kalusto (pilkuilla erotettuna)</label><input class="input-box" id="p-equip" placeholder="Sony A7IV, 70-200mm f/2.8, DJI Mini 4" /></div>
+      <div class="field"><label>Muistiinpanot</label><input class="input-box" id="p-notes" placeholder="Valo illalla, pääsy maantien kautta" /></div>
+      <div class="row2">
+        <div class="field"><label>Hälytyssäde (km)</label><input class="input-box" id="p-radius" type="number" value="10" /></div>
+        <div class="field"><label>Varoitus (min)</label><input class="input-box" id="p-advance" type="number" value="10" /></div>
+      </div>
+      <div class="field"><label>Seurattavat junat (numerot)</label><input class="input-box" id="p-trains" placeholder="63, 65, 67" /></div>
+      <div style="display:flex;gap:10px;padding-top:4px">
+        <button class="btn btn-outline" style="flex:1" onclick="closeSheet()">Peruuta</button>
+        <button class="btn btn-primary" style="flex:1" onclick="savePhotoSpot()">Tallenna</button>
+      </div>
+    </div>`;
+  document.getElementById('sheet-overlay').classList.add('open');
+}
+
+function useGPS() {
+  navigator.geolocation.getCurrentPosition(pos => {
+    document.getElementById('p-lat').value = pos.coords.latitude.toFixed(6);
+    document.getElementById('p-lng').value = pos.coords.longitude.toFixed(6);
+  }, () => alert('Sijaintia ei saatu'));
+}
+
+function savePhotoSpot() {
+  const name = document.getElementById('p-name').value.trim();
+  const lat = parseFloat(document.getElementById('p-lat').value);
+  const lng = parseFloat(document.getElementById('p-lng').value);
+  if (!name || isNaN(lat) || isNaN(lng)) { alert('Nimi, leveys- ja pituusaste ovat pakollisia'); return; }
+
+  const equip = document.getElementById('p-equip').value.split(',').map(s=>s.trim()).filter(Boolean);
+  state.photoSpots.push({
+    name, lat, lng,
+    description: document.getElementById('p-desc').value,
+    equipment: equip,
+    notes: document.getElementById('p-notes').value,
+    radiusKm: Number(document.getElementById('p-radius').value) || 10,
+    advanceMin: Number(document.getElementById('p-advance').value) || 10,
+    watchTrains: document.getElementById('p-trains').value,
+  });
+  savePhotoSpots(); closeSheet(); renderPhotoSpots();
+}
+
+// ── Sheet ────────────────────────────────────────────────────
+function closeSheet() {
+  document.getElementById('sheet-overlay').classList.remove('open');
+}
+
+// ── Helpers ──────────────────────────────────────────────────
+function getDelay(train) {
+  if (!train?.timetableRows?.length) return 0;
+  const last = [...train.timetableRows].reverse().find(r => r.differenceInMinutes != null);
+  return last?.differenceInMinutes || 0;
+}
+
+function getNextStop(train) {
+  if (!train?.timetableRows) return null;
+  const row = train.timetableRows.find(r => r.type === 'DEPARTURE' && !r.actualTime);
+  if (!row) return null;
+  const t = new Date(row.liveEstimateTime || row.scheduledTime);
+  return { code: row.stationShortCode, time: t.toLocaleTimeString('fi-FI',{hour:'2-digit',minute:'2-digit'}) };
+}
+
+function buildStops(train) {
+  const seen = new Set(), stops = [];
+  for (const row of (train.timetableRows || [])) {
+    if (seen.has(row.stationShortCode)) continue;
+    seen.add(row.stationShortCode);
+    const dep = train.timetableRows.find(r => r.stationShortCode===row.stationShortCode && r.type==='DEPARTURE');
+    const r = dep || row;
+    const t = new Date(r.liveEstimateTime || r.scheduledTime);
+    const station = state.stations.get(row.stationShortCode);
+    stops.push({
+      code: row.stationShortCode,
+      name: station?.stationName || '',
+      time: t.toLocaleTimeString('fi-FI',{hour:'2-digit',minute:'2-digit'}),
+      delay: r.differenceInMinutes || 0,
+      actual: !!r.actualTime,
+    });
+  }
+  return stops;
+}
+
+// ── Push notifications ───────────────────────────────────────
+async function requestNotificationPermission() {
+  if (!('Notification' in window)) return;
+  if (Notification.permission === 'default') {
+    const p = await Notification.requestPermission();
+    if (p === 'granted') console.log('Push notifications enabled');
+  }
+}
+
+// ── Service worker ───────────────────────────────────────────
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('sw.js').catch(e => console.warn('SW:', e));
+}
+
+// ── Init & polling ───────────────────────────────────────────
+async function init() {
+  await loadStations();
+  await loadTrains();
+  await loadLocations();
+  updateAlertBadge();
+  requestNotificationPermission();
+
+  // Poll locations every 5s, trains every 60s
+  setInterval(loadLocations, 5000);
+  setInterval(loadTrains, 60000);
+
+  // First render of watcher fields
+  updateWatcherFields();
+}
+
+init();
+</script>
+</body>
+</html>

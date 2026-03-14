@@ -1,0 +1,39 @@
+{
+  "name": "RailWatch — Suomalaiset junat",
+  "short_name": "RailWatch",
+  "description": "Reaaliaikainen suomalaisten junien seuranta junaspottereille",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#0d1117",
+  "theme_color": "#0d1117",
+  "lang": "fi",
+  "categories": ["navigation", "travel", "utilities"],
+  "icons": [
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "screenshots": [],
+  "shortcuts": [
+    {
+      "name": "Kartta",
+      "url": "/?page=map",
+      "description": "Avaa live-kartta"
+    },
+    {
+      "name": "Junat",
+      "url": "/?page=trains",
+      "description": "Junaluettelo"
+    }
+  ]
+}
