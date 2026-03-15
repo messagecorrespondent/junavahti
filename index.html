@@ -685,18 +685,13 @@ async function runPlan(){
   // Rakenna prompti claudelle
   const prompt=`Olet suomalainen rautatievalokuvaaja-asiantuntija.\n\nKäyttäjä haluaa kuvata:\n- Paikka: ${loc}\n- Juna: ${tno}, päivä: ${dt2}\n- Kalusto: ${gear}${extra?'\n- Toiveet: '+extra:''}\n\n${trainTxt}\n\nLaadi kuvaussuunnitelma suomeksi:\n\n## Saapumisaika ja sijoittuminen\nKoska juna saapuu ja mihin asettua?\n\n## Valaistus\nAurinkokulmaus tälle päivämäärälle ja vuodenajalle Suomessa.\n\n## Kalustosta\n${compInfo?'Kommentoi erityisesti kalustoa '+compInfo+' kuvaajan näkökulmasta.':'Yleistä kalustotietoa.'}\n\n## Kamera-asetukset\nSuljinaika, aukko, ISO kalustolla: ${gear}. Erikseen liikkuvalle ja seisovalle junalle.\n\n${gear.toLowerCase().includes('drone')||gear.toLowerCase().includes('dji')||gear.toLowerCase().includes('mavic')||gear.toLowerCase().includes('mini')?'## Drone\nKorkeus, kulma, lentoreitti suhteessa rataan ja aurinkoon.\n':''}## Turvallisuus\nEtäisyydet ja huomioitavat asiat.\n\nOle konkreettinen ja käytännöllinen.`;
 
-  document.getElementById('ppresult').innerHTML=`
-    <div class="ai-wrap">
-      <div class="ai-hdr"><div class="ai-ico">📸</div><div><div class="ai-title">Junan tiedot haettu!</div><div class="ai-sub">Kopioi prompti → liitä claude.ai-chattiin</div></div></div>
-      <p style="font-size:13px;color:var(--t2);line-height:1.6;margin-bottom:12px">
-        Junan tiedot (veturit, aikataulu, viiveet) on haettu Digitrafficista automaattisesti.
-        Kopioi alla oleva teksti ja liitä se <a href="https://claude.ai" target="_blank" style="color:var(--blue)">claude.ai</a>-chattiin — saat täyden suunnitelman.
-      </p>
-      <button id="copybtn" class="btn btn-blue" style="width:100%;margin-bottom:10px" onclick="navigator.clipboard.writeText(document.getElementById('prompttxt').value).then(()=>{document.getElementById('copybtn').textContent='✓ Kopioitu!';setTimeout(()=>document.getElementById('copybtn').textContent='📋 Kopioi prompti',2000)})">
-        📋 Kopioi prompti
-      </button>
-      <textarea id="prompttxt" class="inp" style="height:100px;font-size:12px;font-family:monospace;resize:vertical" readonly></textarea>
-    </div>`;
+  document.getElementById('ppresult').innerHTML=
+    '<div class="ai-wrap">'
+    +'<div class="ai-hdr"><div class="ai-ico">\u{1F4F8}</div><div><div class="ai-title">Junan tiedot haettu!</div><div class="ai-sub">Kopioi prompti → liitä claude.ai-chattiin</div></div></div>'
+    +'<p style="font-size:13px;color:var(--t2);line-height:1.6;margin-bottom:12px">Junan tiedot (veturit, aikataulu, viiveet) on haettu Digitrafficista. Kopioi alla oleva teksti ja liitä se <a href="https://claude.ai" target="_blank" style="color:var(--blue)">claude.ai</a>-chattiin.</p>'
+    +'<button id="copybtn" class="btn btn-blue" style="width:100%;margin-bottom:10px" onclick="navigator.clipboard.writeText(document.getElementById(\'prompttxt\').value).then(()=>{document.getElementById(\'copybtn\').textContent=\'\u2713 Kopioitu!\';setTimeout(()=>document.getElementById(\'copybtn\').textContent=\'\ud83d\udccb Kopioi prompti\',2000)})">\ud83d\udccb Kopioi prompti</button>'
+    +'<textarea id="prompttxt" class="inp" style="height:100px;font-size:12px;font-family:monospace;resize:vertical" readonly></textarea>'
+    +'</div>';
   document.getElementById('prompttxt').value = prompt;
   document.getElementById('ppresult').style.display='block';
   btn.disabled=false;btn.innerHTML='🤖 Luo kuvaussuunnitelma';
