@@ -709,7 +709,30 @@ function timeAgo(i){const s=Math.floor((Date.now()-new Date(i))/1000);if(s<60)re
 
 // ── DATA LOADING ──────────────────────────────────────────────
 async function loadStn(){try{const d=await dtf('/metadata/stations');d.forEach(s=>S.stations.set(s.stationShortCode,s));console.log(`✓ ${S.stations.size} asemaa`)}catch(e){console.warn('Asemat:',e)}}
-async function loadTrains(){try{const d=await dtf(`/live-trains?departure_date=${new Date().toISOString().slice(0,10)}&include_nonstopping=false`);S.trains=d;const n=d.filter(t=>t.runningCurrently&&!t.cancelled).length;document.getElementById('livcnt').textContent=n;document.getElementById('tsub').textContent=`${n} liikkeessä · ${d.length} tänään`;chkW();renderTrains()}catch(e){console.warn('Junat:',e)}}
+async function loadTrains(){try{
+  const today=new Date().toISOString().slice(0,10);
+  const stations=['HKI','TPE','TKU','OUL','JY','KUO','LH','RI','TL','KV','SK','IL','PM','PRI','TRE'];
+  const results=await Promise.all(stations.map(s=>
+    dtf('/live-trains/station/'+s+'?arrived_trains=0&arriving_trains=30&departed_trains=0&departing_trains=30&include_nonstopping=false&departure_date='+today).catch(()=>[])
+  ));
+  const seen=new Set();
+  const all=[];
+  for(const list of results){
+    if(!Array.isArray(list))continue;
+    for(const t of list){
+      const k=t.trainNumber+':'+t.departureDate;
+      if(!seen.has(k)){seen.add(k);all.push(t);}
+    }
+  }
+  S.trains=all;
+  const n=all.filter(t=>t.runningCurrently&&!t.cancelled).length;
+  document.getElementById('livcnt').textContent=n;
+  document.getElementById('tsub').textContent=n+' liikkeessä · '+all.length+' tänään';
+  chkW();
+  renderTrains();
+}catch(e){
+  document.getElementById('tlist').innerHTML='<div class="empty"><div class="empty-ico">⚠️</div><p>Virhe: '+e.message+'</p></div>';
+}}
 async function loadLocs(){try{const d=await dtf('/train-locations/latest');S.locs.clear();d.forEach(l=>{
   const coords=l.location&&l.location.coordinates;
   if(coords){l.longitude=coords[0];l.latitude=coords[1];}
