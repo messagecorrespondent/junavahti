@@ -3,220 +3,733 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
-<meta name="theme-color" content="#0d1117"/>
+<meta name="theme-color" content="#080c14"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
-<meta name="apple-mobile-web-app-title" content="Junahaku"/>
-<title>Junahaku 🚂</title>
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+<meta name="apple-mobile-web-app-title" content="RailWatch"/>
+<link rel="manifest" href="manifest.json"/>
+<link rel="apple-touch-icon" href="icon-192.png"/>
+<title>RailWatch 🚂</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <style>
-*{box-sizing:border-box;margin:0;padding:0}
-body{font-family:-apple-system,system-ui,sans-serif;background:#0d1117;color:#e6edf3;min-height:100vh;padding:20px 16px 40px}
-h1{font-size:22px;font-weight:700;margin-bottom:4px}
-.sub{font-size:14px;color:#7d8590;margin-bottom:24px}
-.row{display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap}
-input,select{background:#161b22;border:1px solid rgba(255,255,255,.1);border-radius:8px;color:#e6edf3;font-size:15px;padding:10px 13px;flex:1;min-width:0;-webkit-appearance:none}
-input:focus,select:focus{outline:none;border-color:#388bfd}
-button{background:#1f6feb;color:#fff;border:none;border-radius:8px;font-size:15px;font-weight:600;padding:10px 20px;cursor:pointer;white-space:nowrap}
-button:active{opacity:.8}
-button:disabled{opacity:.5;cursor:not-allowed}
-#status{font-size:14px;color:#7d8590;margin-bottom:16px;min-height:20px}
-.card{background:#161b22;border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:16px;margin-bottom:12px}
-.train-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px}
-.train-num{font-family:ui-monospace,monospace;font-size:20px;font-weight:700;color:#58a6ff}
-.badges{display:flex;gap:6px;flex-wrap:wrap}
-.badge{font-size:11px;font-weight:700;padding:3px 8px;border-radius:99px}
-.live{background:rgba(63,185,80,.15);color:#3fb950}
-.late{background:rgba(248,81,73,.15);color:#f85149}
-.early{background:rgba(63,185,80,.15);color:#3fb950}
-.cancel{background:rgba(248,81,73,.15);color:#f85149}
-.rare{background:rgba(167,139,250,.15);color:#a78bfa}
-.section{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#7d8590;margin:12px 0 6px}
-.consist{display:flex;flex-wrap:wrap;gap:5px}
-.loco{background:rgba(88,166,255,.1);border:1px solid rgba(88,166,255,.25);color:#58a6ff;border-radius:7px;padding:4px 10px;font-size:12px;font-weight:600}
-.loco.rare-loco{background:rgba(167,139,250,.12);border-color:rgba(167,139,250,.3);color:#a78bfa}
-.wagon{background:#161b22;border:1px solid rgba(255,255,255,.08);color:#8b9bb4;border-radius:7px;padding:4px 10px;font-size:12px}
-.stops{display:flex;flex-direction:column}
-.stop{display:grid;grid-template-columns:14px 1fr auto;align-items:start;gap:8px;padding:6px 0;font-size:14px;color:#8b9bb4;border-bottom:1px solid rgba(255,255,255,.05)}
-.stop:last-child{border-bottom:none}
-.stop.now{color:#e6edf3}
-.stop.done{opacity:.35}
-.dot{width:7px;height:7px;border-radius:50%;background:rgba(255,255,255,.15);margin-top:4px;flex-shrink:0}
-.stop.now .dot{background:#388bfd;box-shadow:0 0 6px #388bfd}
-.sname{font-family:ui-monospace,monospace;font-weight:600}
-.stime{font-family:ui-monospace,monospace;font-weight:600;text-align:right}
-.sdelay{font-size:11px;font-weight:700;color:#f85149;text-align:right}
-.track{font-size:11px;color:#7d8590;text-align:right}
-.stats{display:grid;grid-template-columns:1fr 1fr 1fr;text-align:center;gap:0;margin-bottom:12px}
-.stat{padding:10px 4px;border-right:1px solid rgba(255,255,255,.06)}
-.stat:last-child{border-right:none}
-.stat-val{font-size:20px;font-weight:700;letter-spacing:-.02em}
-.stat-label{font-size:11px;color:#7d8590;margin-top:2px}
-.error{background:rgba(248,81,73,.1);border:1px solid rgba(248,81,73,.25);border-radius:12px;padding:16px;color:#f85149;font-size:14px}
+:root{
+  --bg:#080c14;--s1:#0f1623;--s2:#161e2e;--s3:#1c2740;
+  --b0:rgba(255,255,255,.06);--b1:rgba(255,255,255,.12);
+  --t1:#e8edf5;--t2:#8b9bb4;--t3:#4a5568;
+  --blue:#4f9eff;--green:#3dd68c;--amber:#f0a500;--red:#f04f4f;--purple:#a78bfa;
+  --nav:56px;--sbot:env(safe-area-inset-bottom,0px);--stop:env(safe-area-inset-top,0px);
+  --r:12px;--rs:8px;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--t1);font:15px/1.5 -apple-system,'SF Pro Text',system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+button{font:inherit;cursor:pointer;background:none;border:none;color:inherit}
+input,select,textarea{font:inherit;color:var(--t1);background:none;border:none;outline:none}
+a{color:var(--blue);text-decoration:none}
+::-webkit-scrollbar{width:3px}::-webkit-scrollbar-thumb{background:var(--b0);border-radius:2px}
+
+#app{display:flex;flex-direction:column;height:100dvh;padding-top:var(--stop)}
+#topbar{display:flex;align-items:center;justify-content:space-between;padding:10px 16px;background:var(--s1);border-bottom:1px solid var(--b0);flex-shrink:0}
+#topbar h1{font-size:17px;font-weight:700;letter-spacing:-.02em}
+#topbar h1 em{font-style:normal;color:var(--blue)}
+.livepill{display:flex;align-items:center;gap:5px;font-size:12px;color:var(--t2);background:var(--s2);border:1px solid var(--b0);border-radius:99px;padding:3px 10px}
+.dot{width:6px;height:6px;border-radius:50%;background:var(--green);flex-shrink:0;animation:blink 2s ease-in-out infinite}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.2}}
+.dot-amber{background:var(--amber)}
+
+#pages{flex:1;overflow:hidden;position:relative}
+.page{position:absolute;inset:0;overflow-y:auto;overflow-x:hidden;display:none;-webkit-overflow-scrolling:touch}
+.page.active{display:block}
+#page-map{padding:0}
+
+#nav{display:flex;height:calc(var(--nav) + var(--sbot));padding-bottom:var(--sbot);background:var(--s1);border-top:1px solid var(--b0);flex-shrink:0}
+.nb{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;color:var(--t3);font-size:10px;font-weight:500;padding:6px 2px;position:relative;transition:color .15s}
+.nb.on{color:var(--blue)}
+.nb svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.nbadge{position:absolute;top:4px;right:calc(50% - 17px);background:var(--red);color:#fff;font-size:9px;font-weight:800;border-radius:99px;padding:1px 4px;min-width:14px;text-align:center;display:none}
+
+#map{width:100%;height:100%;background:#06090f}
+.leaflet-tile{filter:invert(1) hue-rotate(200deg) brightness(.78) saturate(.5)}
+.leaflet-control-zoom a{background:var(--s2)!important;color:var(--t1)!important;border-color:var(--b0)!important}
+.leaflet-control-attribution{background:rgba(8,12,20,.8)!important;color:var(--t3)!important;font-size:9px!important}
+.leaflet-popup-content-wrapper{background:var(--s2)!important;border:1px solid var(--b1)!important;border-radius:16px!important;color:var(--t1)!important;box-shadow:0 16px 48px rgba(0,0,0,.8)!important}
+.leaflet-popup-tip{background:var(--s2)!important}
+.leaflet-popup-content{margin:14px!important;min-width:200px}
+.mover{position:absolute;top:10px;left:10px;z-index:1000;background:rgba(8,12,20,.9);backdrop-filter:blur(10px);border:1px solid var(--b0);border-radius:var(--r);padding:7px 13px;font-size:12px;color:var(--t2);display:flex;align-items:center;gap:7px}
+
+.pi{padding:16px;display:flex;flex-direction:column;gap:14px;padding-bottom:28px}
+.ph{display:flex;align-items:flex-start;justify-content:space-between;gap:8px}
+.ptitle{font-size:21px;font-weight:700;letter-spacing:-.02em}
+.psub{font-size:13px;color:var(--t3);margin-top:2px}
+
+.card{background:var(--s2);border:1px solid var(--b0);border-radius:var(--r);padding:14px}
+.slabel{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--t3);margin-bottom:8px}
+
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:10px 18px;border-radius:var(--r);font-size:14px;font-weight:600;transition:opacity .15s,transform .1s;white-space:nowrap}
+.btn:active{opacity:.7;transform:scale(.97)}
+.btn:disabled{opacity:.4;cursor:not-allowed}
+.btn-blue{background:var(--blue);color:#000}
+.btn-out{background:transparent;border:1px solid var(--b0);color:var(--t1)}
+.btn-out:hover{border-color:var(--b1);background:var(--s3)}
+.btn-sm{padding:7px 13px;font-size:13px;border-radius:var(--rs)}
+.btn-xs{padding:4px 9px;font-size:12px;border-radius:6px}
+.bico{width:32px;height:32px;border-radius:var(--rs);border:1px solid var(--b0);color:var(--t2);display:inline-flex;align-items:center;justify-content:center;font-size:14px;transition:all .15s}
+.bico:hover{border-color:var(--red);color:var(--red);background:rgba(240,79,79,.1)}
+
+.pill{font-size:10px;font-weight:700;padding:2px 7px;border-radius:99px;white-space:nowrap}
+.pg{background:rgba(61,214,140,.12);color:var(--green)}
+.pr{background:rgba(240,79,79,.12);color:var(--red)}
+.pa{background:rgba(240,165,0,.12);color:var(--amber)}
+.pb{background:rgba(79,158,255,.12);color:var(--blue)}
+.pp{background:rgba(167,139,250,.12);color:var(--purple)}
+
+.titem{display:flex;align-items:center;gap:10px;padding:11px 14px;background:var(--s2);border-bottom:1px solid var(--b0);cursor:pointer;transition:background .1s}
+.titem:last-child{border-bottom:none}
+.titem:active{background:var(--s3)}
+.tnum{font-family:'SF Mono',ui-monospace,monospace;font-weight:700;font-size:14px;color:var(--blue);min-width:56px}
+.tinfo{flex:1;min-width:0}
+.tname{font-size:14px;font-weight:600}
+.tmeta{font-size:12px;color:var(--t2);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tright{display:flex;flex-direction:column;align-items:flex-end;gap:3px}
+
+.ttrow{display:grid;grid-template-columns:16px 1fr auto;align-items:start;gap:9px;padding:7px 0;color:var(--t2);font-size:14px}
+.ttrow.now{color:var(--t1)}
+.ttrow.done{opacity:.32}
+.ttdot{width:7px;height:7px;border-radius:50%;background:var(--b0);margin-top:5px;flex-shrink:0}
+.ttrow.now .ttdot{background:var(--blue);box-shadow:0 0 7px var(--blue)}
+.ttstn{font-family:'SF Mono',monospace;font-weight:600}
+.ttsub{font-size:11px;color:var(--t3)}
+.tttime{font-family:'SF Mono',monospace;font-weight:600;text-align:right}
+.ttdelay{font-size:11px;font-weight:700;color:var(--red);text-align:right}
+.tttrack{font-size:11px;color:var(--t3);text-align:right}
+
+.consist{display:flex;flex-wrap:wrap;gap:5px;margin-top:6px}
+.cv{padding:4px 10px;border-radius:7px;font-size:12px;font-weight:600;border:1px solid var(--b0)}
+.cv-loco{background:rgba(79,158,255,.1);color:var(--blue);border-color:rgba(79,158,255,.25)}
+.cv-wagon{background:var(--s1);color:var(--t2)}
+.cv-rare{background:rgba(167,139,250,.12);color:var(--purple);border-color:rgba(167,139,250,.3)}
+
+.wcard{background:var(--s2);border:1px solid var(--b0);border-radius:var(--r);padding:14px;margin-bottom:8px;transition:opacity .15s}
+.wcard.off{opacity:.5}
+.whead{display:flex;align-items:flex-start;justify-content:space-between;gap:8px}
+.wtype{font-size:11px;color:var(--t3);margin-bottom:2px}
+.wname{font-size:15px;font-weight:700}
+.wcond{margin-top:8px;padding:8px 10px;background:var(--s1);border-radius:var(--rs);font-size:13px;color:var(--t2);line-height:1.7}
+.wcond strong{color:var(--t1)}
+.wfoot{margin-top:10px;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+
+.form{display:flex;flex-direction:column;gap:13px}
+.field{display:flex;flex-direction:column;gap:5px}
+.flabel{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--t3)}
+.inp{background:var(--s1);border:1px solid var(--b0);border-radius:var(--rs);padding:10px 13px;font-size:15px;color:var(--t1);width:100%;-webkit-appearance:none;transition:border-color .15s}
+.inp:focus{border-color:var(--blue);box-shadow:0 0 0 3px rgba(79,158,255,.1)}
+.inp::placeholder{color:var(--t3)}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+
+.seg{display:flex;background:var(--s1);border-radius:var(--rs);padding:2px;gap:2px}
+.seg button{flex:1;padding:7px 6px;border-radius:6px;font-size:13px;font-weight:500;color:var(--t2);transition:all .15s;white-space:nowrap}
+.seg button.on{background:var(--s3);color:var(--t1)}
+
+.chip-row{display:flex;flex-wrap:wrap;gap:5px;margin-top:6px}
+.chip{padding:5px 11px;border-radius:99px;font-size:12px;font-weight:600;cursor:pointer;border:1px solid var(--b0);color:var(--t2);background:var(--s1);transition:all .15s}
+.chip.sel{background:rgba(79,158,255,.15);border-color:rgba(79,158,255,.4);color:var(--blue)}
+
+.ai-wrap{background:linear-gradient(135deg,rgba(79,158,255,.07),rgba(167,139,250,.07));border:1px solid rgba(79,158,255,.18);border-radius:var(--r);padding:16px}
+.ai-hdr{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+.ai-ico{width:36px;height:36px;border-radius:10px;background:rgba(79,158,255,.15);display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0}
+.ai-title{font-size:16px;font-weight:700}
+.ai-sub{font-size:12px;color:var(--t2)}
+.ai-out{margin-top:12px;padding:13px;background:rgba(0,0,0,.3);border-radius:var(--rs);font-size:14px;line-height:1.75;color:var(--t1)}
+.ai-out h3{font-size:14px;font-weight:700;color:var(--blue);margin:12px 0 4px}
+.ai-out h3:first-child{margin-top:0}
+.ai-out p{margin-bottom:8px}
+.ai-out p:last-child{margin-bottom:0}
+
+.spin{display:inline-block;width:15px;height:15px;border:2px solid var(--b0);border-top-color:var(--blue);border-radius:50%;animation:spin .7s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+.aitem{display:flex;gap:12px;align-items:flex-start;padding:12px 16px;background:var(--s2);border-bottom:1px solid var(--b0)}
+.aitem.unread{border-left:3px solid var(--blue);padding-left:13px}
+.aico{font-size:20px;flex-shrink:0;line-height:1.2}
+.atitle{font-size:14px;font-weight:700}
+.abody{font-size:13px;color:var(--t2);margin-top:2px}
+.atime{font-size:11px;color:var(--t3);margin-top:3px}
+
+.empty{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:56px 20px;gap:10px;text-align:center}
+.empty-ico{font-size:42px;margin-bottom:4px}
+.empty h3{font-size:17px;font-weight:700}
+.empty p{font-size:14px;color:var(--t2);max-width:260px}
+
+.sbox{position:relative}
+.sbox svg{position:absolute;left:12px;top:50%;transform:translateY(-50%);width:15px;height:15px;stroke:var(--t3);fill:none;stroke-width:2;stroke-linecap:round;pointer-events:none}
+.sbox .inp{padding-left:36px}
+
+#det{position:fixed;inset:0;background:var(--bg);z-index:2000;overflow-y:auto;padding-top:var(--stop);display:none;flex-direction:column}
+#det.on{display:flex}
+#dettop{display:flex;align-items:center;gap:10px;padding:10px 16px;background:var(--s1);border-bottom:1px solid var(--b0);flex-shrink:0;position:sticky;top:0;z-index:1}
+#detbody{padding:16px;display:flex;flex-direction:column;gap:14px;padding-bottom:40px}
+
+#shover{position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:5000;display:none;align-items:flex-end}
+#shover.on{display:flex}
+#sh{background:var(--s1);border:1px solid var(--b0);border-radius:22px 22px 0 0;padding:18px;width:100%;max-height:92dvh;overflow-y:auto;padding-bottom:calc(18px + var(--sbot));display:flex;flex-direction:column;gap:14px}
+.shnd{width:34px;height:4px;border-radius:2px;background:var(--b0);margin:0 auto 4px}
+.shtitle{font-size:18px;font-weight:700}
 </style>
 </head>
 <body>
+<div id="app">
+  <div id="topbar">
+    <h1>Rail<em>Watch</em> 🚂</h1>
+    <div class="livepill"><span class="dot" id="livdot"></span><span id="livcnt">–</span> junaa</div>
+  </div>
+  <div id="pages">
 
-<h1>Junahaku 🚂</h1>
-<div class="sub">Hakee tiedot suoraan Fintraffic Digitrafficista</div>
+    <div id="page-map" class="page active">
+      <div class="mover"><span class="dot"></span><span id="mapcnt">–</span> liikkeessä</div>
+      <div id="map"></div>
+    </div>
 
-<div class="row">
-  <input id="tnum" type="number" placeholder="Junanumero, esim. 63" />
-  <input id="tdate" type="date" />
+    <div id="page-trains" class="page">
+      <div class="pi">
+        <div class="ph"><div><div class="ptitle">Junat</div><div class="psub" id="tsub">Ladataan…</div></div></div>
+        <div class="sbox">
+          <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+          <input class="inp" id="tsq" placeholder="Junanumero, tyyppi (IC, S, P)…" oninput="renderTrains()"/>
+        </div>
+        <div class="seg" id="tseg">
+          <button class="on" onclick="setTF('all',this)">Kaikki</button>
+          <button onclick="setTF('live',this)">Live</button>
+          <button onclick="setTF('late',this)">Myöhässä</button>
+          <button onclick="setTF('cancel',this)">Peruttu</button>
+        </div>
+        <div id="tlist" style="border-radius:var(--r);overflow:hidden;border:1px solid var(--b0)">
+          <div class="empty"><div class="empty-ico">🚂</div><p>Ladataan…</p></div>
+        </div>
+      </div>
+    </div>
+
+    <div id="page-watchers" class="page">
+      <div class="pi">
+        <div class="ph">
+          <div><div class="ptitle">Vahdit</div><div class="psub" id="wsub">–</div></div>
+          <button class="btn btn-blue btn-sm" onclick="openWSheet()">+ Uusi vahti</button>
+        </div>
+        <div class="card" style="padding:11px 13px;font-size:13px;color:var(--t2);line-height:1.6;border-left:3px solid var(--blue)">
+          Vahdit lukevat Digitraffic-dataa jatkuvasti. Voit seurata tiettyä <strong style="color:var(--t1)">vaunua numerolla</strong>, <strong style="color:var(--t1)">veturityyppiä</strong>, <strong style="color:var(--t1)">liikennepaikka</strong>a tai <strong style="color:var(--t1)">reittiä</strong>.
+        </div>
+        <div id="wlist"></div>
+      </div>
+    </div>
+
+    <div id="page-photo" class="page">
+      <div class="pi">
+        <div class="ptitle">Kuvaussuunnitelma</div>
+        <div class="psub">Syötä kuvauspaikka + juna + kalusto → AI tekee suunnitelman</div>
+        <div class="ai-wrap">
+          <div class="ai-hdr"><div class="ai-ico">🤖</div><div><div class="ai-title">AI-kuvaussuunnitelija</div><div class="ai-sub">Hakee junan tiedot Digitrafficista reaaliajassa</div></div></div>
+          <div class="form">
+            <div class="field"><div class="flabel">Kuvauspaikka</div><input class="inp" id="pploc" placeholder="esim. Hakosilta, km 124 Nastola"/></div>
+            <div class="row2">
+              <div class="field"><div class="flabel">Junanumero</div><input class="inp" id="pptno" type="number" placeholder="esim. 63"/></div>
+              <div class="field"><div class="flabel">Päivämäärä</div><input class="inp" id="ppdate" type="date"/></div>
+            </div>
+            <div class="field"><div class="flabel">Kuvauskalusto</div><input class="inp" id="ppgear" placeholder="esim. Sony A7IV + 70-200mm, DJI Mini 4 Pro"/></div>
+            <div class="field"><div class="flabel">Lisätoiveet (vapaaehtoinen)</div><input class="inp" id="ppextra" placeholder="esim. vastavaloperspektiivi, drone yläpuolelta"/></div>
+            <button class="btn btn-blue" id="ppbtn" onclick="runPlan()">🤖 Luo kuvaussuunnitelma</button>
+          </div>
+        </div>
+        <div id="pptraincard" style="display:none"></div>
+        <div id="ppresult" style="display:none"></div>
+      </div>
+    </div>
+
+    <div id="page-alerts" class="page">
+      <div class="pi">
+        <div class="ph">
+          <div><div class="ptitle">Hälytykset</div><div class="psub" id="asub">–</div></div>
+          <button class="btn btn-out btn-sm" onclick="clearAlerts()">Merkitse luetuksi</button>
+        </div>
+      </div>
+      <div id="alist" style="border-top:1px solid var(--b0)"></div>
+    </div>
+
+  </div>
+  <nav id="nav">
+    <button class="nb on" onclick="showPage('map',this)">
+      <svg viewBox="0 0 24 24"><polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21"/><line x1="9" y1="3" x2="9" y2="18"/><line x1="15" y1="6" x2="15" y2="21"/></svg>Kartta
+    </button>
+    <button class="nb" onclick="showPage('trains',this)">
+      <svg viewBox="0 0 24 24"><rect x="4" y="3" width="16" height="16" rx="2.5"/><path d="M4 11h16M12 3v8M8 19l-2 2M16 19l2 2"/><circle cx="8.5" cy="15.5" r="1.2"/><circle cx="15.5" cy="15.5" r="1.2"/></svg>Junat
+    </button>
+    <button class="nb" onclick="showPage('watchers',this)">
+      <svg viewBox="0 0 24 24"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+      <span id="wbadge" class="nbadge">0</span>Vahdit
+    </button>
+    <button class="nb" onclick="showPage('photo',this)">
+      <svg viewBox="0 0 24 24"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>Kuvaus
+    </button>
+    <button class="nb" onclick="showPage('alerts',this)">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+      <span id="abadge" class="nbadge">0</span>Hälytykset
+    </button>
+  </nav>
 </div>
-<div class="row">
-  <button onclick="hae()" id="btn">Hae junatiedot</button>
+
+<div id="det">
+  <div id="dettop">
+    <button class="btn btn-out btn-sm" onclick="closeDet()">← Takaisin</button>
+    <div id="detbadge" class="pill pb" style="font-size:14px;padding:4px 12px"></div>
+    <div id="detpills" style="margin-left:auto;display:flex;gap:5px;flex-wrap:wrap"></div>
+  </div>
+  <div id="detbody"></div>
 </div>
 
-<div id="status"></div>
-<div id="out"></div>
+<div id="shover" onclick="closeSheet()">
+  <div id="sh" onclick="event.stopPropagation()">
+    <div class="shnd"></div>
+    <div id="shbody"></div>
+  </div>
+</div>
 
 <script>
-const API = 'https://rata.digitraffic.fi/api/v1';
-const RARE = new Set(['Sr1','Sr2','Dr16','Dv12','Dv15r','Hr12','Hr13','TEM']);
+'use strict';
+const DT='https://rata.digitraffic.fi/api/v1';
+const H={'Digitraffic-User':'RailWatch/1.0'};
+const RARE=new Set(['Sr1','Sr2','Dr16','Dv12','Dv15r','Hr12','Hr13','TEM']);
+const LOCOS=['Dr16','Sr1','Sr2','Sr3','Sm1','Sm2','Sm3','Sm4','Sm5','Sm6','Sm7','Dv12','Dv15r','Hr12','Hr13','TEM'];
+const WAGONS=['Ed','Edd','Edds','Eds','Ein','Eilf','Eisg','Ei','Eal','Abfils','Aefilo','WL','LO','Gb','Gbs','Hbils','Kbs','Lb'];
+const TCAT={'Long-distance':'Kaukoliikenne','Commuter':'Lähiliikenne','Cargo':'Tavaraliikenne'};
 
-// Aseta tämä päivä oletukseksi
-document.getElementById('tdate').value = new Date().toISOString().slice(0,10);
+const S={
+  trains:[],locs:new Map(),stations:new Map(),comps:new Map(),
+  watchers:ld('rw_w',[]),alerts:ld('rw_a',[])
+};
+function ld(k,d){try{return JSON.parse(localStorage.getItem(k))||d}catch{return d}}
+function sv(k,v){localStorage.setItem(k,JSON.stringify(v))}
 
-async function hae() {
-  const num = document.getElementById('tnum').value.trim();
-  const date = document.getElementById('tdate').value;
-  if (!num) { alert('Anna junanumero'); return; }
+async function dtf(p){const r=await fetch(DT+p,{headers:H});if(!r.ok)throw new Error(r.status);return r.json()}
 
-  const btn = document.getElementById('btn');
-  btn.disabled = true;
-  btn.textContent = 'Haetaan…';
-  document.getElementById('status').textContent = 'Haetaan Digitrafficista…';
-  document.getElementById('out').innerHTML = '';
+const map=L.map('map',{zoomControl:false}).setView([62.5,26.0],6);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'© OpenStreetMap',maxZoom:19}).addTo(map);
+L.control.zoom({position:'topright'}).addTo(map);
+const MK=new Map();
 
-  try {
-    // Hae aikataulu ja kokoonpano rinnakkain
-    const [trainRes, compRes] = await Promise.all([
-      fetch(`${API}/trains/${date}/${num}`, {
-        headers: { 'Digitraffic-User': 'JunaInfo/1.0' }
-      }),
-      fetch(`${API}/compositions/${date}/${num}`, {
-        headers: { 'Digitraffic-User': 'JunaInfo/1.0' }
-      }).catch(() => null)
-    ]);
-
-    if (!trainRes.ok) {
-      throw new Error(`Junaa ${num} ei löydy päivälle ${date} (HTTP ${trainRes.status})`);
-    }
-
-    const trainArr = await trainRes.json();
-    const train = Array.isArray(trainArr) ? trainArr[0] : trainArr;
-    if (!train) throw new Error('Junaa ei löydy');
-
-    let comp = null;
-    if (compRes && compRes.ok) {
-      comp = await compRes.json();
-    }
-
-    document.getElementById('status').textContent = '';
-    document.getElementById('out').innerHTML = renderTrain(train, comp);
-
-  } catch(e) {
-    document.getElementById('status').textContent = '';
-    document.getElementById('out').innerHTML = `<div class="error">⚠️ ${e.message}</div>`;
-  }
-
-  btn.disabled = false;
-  btn.textContent = 'Hae junatiedot';
+function mkIcon(cat,sel,rare){
+  const c=sel?'#f0a500':rare?'#a78bfa':cat==='Long-distance'?'#4f9eff':cat==='Commuter'?'#3dd68c':cat==='Cargo'?'#4a5568':'#7c6af7';
+  const sz=sel?14:cat==='Long-distance'?10:8;
+  const glow=sel||rare?`box-shadow:0 0 ${sel?10:7}px 2px ${c}99`:'';
+  return L.divIcon({className:'',html:`<div style="width:${sz}px;height:${sz}px;background:${c};border:2px solid rgba(255,255,255,${sel?.9:.4});border-radius:50%;${glow};transition:all .25s"></div>`,iconSize:[sz,sz],iconAnchor:[sz/2,sz/2]});
 }
 
-function renderTrain(train, comp) {
-  const delay = getDelay(train);
-  const locos = comp?.journeySections?.flatMap(s => s.locomotives || []) || [];
-  const wagons = comp?.journeySections?.flatMap(s => s.wagons || []) || [];
-  const hasRare = locos.some(l => RARE.has(l.locomotiveType));
-  const stops = buildStops(train);
-  const currentIdx = stops.findLastIndex(s => s.actual);
-
-  // Badges
-  let badges = '';
-  if (train.runningCurrently && !train.cancelled) badges += '<span class="badge live">LIVE</span>';
-  if (train.cancelled) badges += '<span class="badge cancel">PERUTTU</span>';
-  if (hasRare) badges += '<span class="badge rare">⚡ Harvinainen kalusto</span>';
-  if (delay > 2) badges += `<span class="badge late">+${delay} min</span>`;
-  if (delay < -1) badges += `<span class="badge early">${delay} min</span>`;
-
-  // Nopeus/viive/operaattori
-  const locString = locos.map(l => l.locomotiveType).filter(Boolean).join(', ') || '–';
-  const statsHTML = `
-    <div class="stats">
-      <div class="stat"><div class="stat-val" style="${delay>2?'color:#f85149':delay<0?'color:#3fb950':''}">${delay===0?'Ajassa':delay>0?'+'+delay+'m':delay+'m'}</div><div class="stat-label">Viive</div></div>
-      <div class="stat"><div class="stat-val">${train.operatorShortCode||'VR'}</div><div class="stat-label">Operaattori</div></div>
-      <div class="stat"><div class="stat-val" style="font-size:14px">${locString}</div><div class="stat-label">Veturi</div></div>
-    </div>`;
-
-  // Kalusto
-  let compHTML = '';
-  if (locos.length || wagons.length) {
-    const locoChips = locos.map(l => {
-      const r = RARE.has(l.locomotiveType);
-      return `<span class="loco ${r?'rare-loco':''}">${l.locomotiveType} <span style="opacity:.6;font-size:10px">#${l.vehicleNumber}</span></span>`;
-    }).join('');
-    const wagonChips = wagons.slice(0,10).map(w =>
-      `<span class="wagon">${w.wagonType}</span>`
-    ).join('') + (wagons.length>10 ? `<span class="wagon">+${wagons.length-10}</span>` : '');
-    compHTML = `<div class="section">Kalusto</div><div class="consist">${locoChips}${wagonChips}</div>`;
+function updMarkers(){
+  const tm=new Map(S.trains.map(t=>[t.trainNumber+':'+t.departureDate,t]));
+  for(const[k,m]of MK)if(!S.locs.has(k)){map.removeLayer(m);MK.delete(k)}
+  for(const[k,loc]of S.locs){
+    const t=tm.get(k);
+    const rare=isRare(t);
+    if(MK.has(k)){MK.get(k).setLatLng([loc.latitude,loc.longitude])}
+    else{const m=L.marker([loc.latitude,loc.longitude],{icon:mkIcon(t?.trainCategory,false,rare)}).addTo(map).on('click',()=>openDet(k));MK.set(k,m)}
   }
+}
 
-  // Aikataulu
-  const stopsHTML = stops.map((s, i) => {
-    const cls = i === currentIdx ? 'now' : i < currentIdx ? 'done' : '';
-    return `<div class="stop ${cls}">
-      <div class="dot"></div>
-      <div class="sname">${s.code}</div>
-      <div>
-        ${s.delay > 2 ? `<div class="sdelay">+${s.delay}m</div>` : ''}
-        <div class="stime">${s.time}</div>
-        ${s.track ? `<div class="track">laituri ${s.track}</div>` : ''}
-      </div>
-    </div>`;
-  }).join('');
+function isRare(t){return(t?.journeySections||[]).flatMap(s=>s.locomotives||[]).some(l=>RARE.has(l.locomotiveType))}
 
-  return `<div class="card">
-    <div class="train-header">
-      <div class="train-num">${train.trainType} ${train.trainNumber}</div>
-      <div class="badges">${badges}</div>
+function popup(k){
+  const t=S.trains.find(x=>x.trainNumber+':'+x.departureDate===k);
+  const loc=S.locs.get(k);
+  if(!t||!loc)return '';
+  const d=delay(t),ns=nxStop(t);
+  const locos=(t.journeySections||[]).flatMap(s=>s.locomotives||[]);
+  const ls=locos.map(l=>l.locomotiveType).filter(Boolean).join(', ');
+  const rare=locos.some(l=>RARE.has(l.locomotiveType));
+  return`<div>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+      <span style="font-family:monospace;font-weight:800;font-size:16px;color:#4f9eff">${t.trainType} ${t.trainNumber}</span>
+      <span style="font-size:12px;color:#8b9bb4">${Math.round(loc.speed)} km/h</span>
     </div>
-    ${statsHTML}
-    ${compHTML}
-    <div class="section">Aikataulu — ${stops.length} pysäkkiä</div>
-    <div class="stops">${stopsHTML}</div>
+    ${rare?`<div style="font-size:12px;font-weight:700;color:#a78bfa;margin-bottom:5px">⚡ Harvinainen kalusto: ${ls}</div>`:''}
+    ${d>2?`<div style="font-size:12px;font-weight:700;color:#f04f4f;margin-bottom:5px">+${d} min myöhässä</div>`:''}
+    ${ns?`<div style="font-size:13px;margin-bottom:7px">➤ <b>${ns.code}</b> ${ns.t}${ns.d>2?` <span style="color:#f04f4f">+${ns.d}m</span>`:''}</div>`:''}
+    ${ls&&!rare?`<div style="font-size:12px;color:#8b9bb4;margin-bottom:8px">🚂 ${ls}</div>`:''}
+    <button onclick="openDet('${k}')" style="width:100%;padding:8px;background:rgba(79,158,255,.12);border:1px solid rgba(79,158,255,.3);border-radius:8px;color:#4f9eff;font-size:13px;font-weight:600;cursor:pointer">Täysi aikataulu →</button>
   </div>`;
 }
 
-function getDelay(train) {
-  if (!train.timetableRows?.length) return 0;
-  const last = [...train.timetableRows].reverse().find(r => r.differenceInMinutes != null);
-  return last?.differenceInMinutes || 0;
-}
+async function openDet(k){
+  document.getElementById('det').classList.add('on');
+  document.getElementById('detbody').innerHTML='<div class="empty"><div class="spin" style="width:28px;height:28px;border-width:3px"></div></div>';
+  const[num,date]=k.split(':');
+  const[train,comp]=await Promise.all([
+    dtf(`/trains/${date}/${num}`).then(d=>Array.isArray(d)?d[0]:d).catch(()=>null),
+    dtf(`/compositions/${date}/${num}`).then(d=>{
+      return{locos:d.journeySections?.flatMap(s=>s.locomotives||[])||[],wagons:d.journeySections?.flatMap(s=>s.wagons||[])||[]};
+    }).catch(()=>null)
+  ]);
+  const t=train||S.trains.find(x=>x.trainNumber+':'+x.departureDate===k);
+  if(!t){document.getElementById('detbody').innerHTML='<div class="empty"><p>Ei tietoja</p></div>';return}
+  const loc=S.locs.get(k);
+  const d=delay(t);
+  const locos=comp?.locos||(t.journeySections||[]).flatMap(s=>s.locomotives||[]);
+  const wagons=comp?.wagons||(t.journeySections||[]).flatMap(s=>s.wagons||[]);
 
-function buildStops(train) {
-  const seen = new Set(), stops = [];
-  for (const r of train.timetableRows || []) {
-    if (seen.has(r.stationShortCode)) continue;
-    seen.add(r.stationShortCode);
-    const dep = train.timetableRows.find(x =>
-      x.stationShortCode === r.stationShortCode && x.type === 'DEPARTURE'
-    ) || r;
-    const t = new Date(dep.liveEstimateTime || dep.scheduledTime);
-    stops.push({
-      code: r.stationShortCode,
-      time: t.toLocaleTimeString('fi-FI', {hour:'2-digit', minute:'2-digit'}),
-      delay: dep.differenceInMinutes || 0,
-      actual: !!dep.actualTime,
-      track: dep.commercialTrack || ''
-    });
+  document.getElementById('detbadge').textContent=`${t.trainType} ${t.trainNumber}`;
+  const pp=document.getElementById('detpills');
+  pp.innerHTML='';
+  if(t.runningCurrently)pp.innerHTML+='<span class="pill pg">LIVE</span>';
+  if(t.cancelled)pp.innerHTML+='<span class="pill pr">PERUTTU</span>';
+  if(d>2)pp.innerHTML+=`<span class="pill pr">+${d}m</span>`;
+  if(d<-1)pp.innerHTML+=`<span class="pill pg">${d}m</span>`;
+  if(isRare(t))pp.innerHTML+='<span class="pill pp">⚡ Harvinainen</span>';
+
+  const statsH=loc?`<div class="card" style="display:grid;grid-template-columns:1fr 1fr 1fr;text-align:center">
+    ${sc(Math.round(loc.speed),'km/h','Nopeus')}
+    ${sc(d===0?'Ajassa':d>0?'+'+d+'m':d+'m','','Viive',d>2?'var(--red)':d<0?'var(--green)':'')}
+    ${sc(t.operatorShortCode||'–','','Operaattori')}
+  </div>`:'';
+
+  let compH='';
+  if(locos.length||wagons.length){
+    const li=locos.map(l=>`<span class="cv ${RARE.has(l.locomotiveType)?'cv-rare':'cv-loco'}">${l.locomotiveType||'?'} <span style="opacity:.6;font-size:10px">#${l.vehicleNumber||'?'}</span></span>`).join('');
+    const wi=wagons.slice(0,8).map(w=>`<span class="cv cv-wagon">${w.wagonType||'?'}</span>`).join('');
+    const mo=wagons.length>8?`<span class="cv cv-wagon">+${wagons.length-8}</span>`:'';
+    compH=`<div class="card"><div class="slabel">Kalusto</div><div class="consist">${li}${wi}${mo}</div></div>`;
   }
-  return stops;
+
+  const stops=bStops(t);
+  const ci=stops.findLastIndex(s=>s.actual);
+  const ttH=stops.map((s,i)=>{
+    const cls=i===ci?'now':i<ci?'done':'';
+    const stn=S.stations.get(s.code);
+    return`<div class="ttrow ${cls}">
+      <div class="ttdot"></div>
+      <div><div class="ttstn">${s.code}</div>${stn?`<div class="ttsub">${stn.stationName}</div>`:''}</div>
+      <div>${s.d>2?`<div class="ttdelay">+${s.d}m</div>`:''}<div class="tttime">${s.t}</div>${s.tr?`<div class="tttrack">laituri ${s.tr}</div>`:''}</div>
+    </div>`;
+  }).join('');
+
+  document.getElementById('detbody').innerHTML=`${statsH}${compH}<div class="card"><div class="slabel">Aikataulu</div>${ttH}</div>`;
 }
 
-// Enter-näppäin hakee
-document.getElementById('tnum').addEventListener('keydown', e => {
-  if (e.key === 'Enter') hae();
-});
+function sc(v,u,l,c=''){return`<div style="padding:12px 4px;border-right:1px solid var(--b0)"><div style="font-size:22px;font-weight:800;letter-spacing:-.02em;${c?'color:'+c:''}">${v}<span style="font-size:11px;font-weight:500;color:var(--t2);margin-left:2px">${u}</span></div><div style="font-size:11px;color:var(--t3);margin-top:1px">${l}</div></div>`}
+function closeDet(){document.getElementById('det').classList.remove('on')}
+
+let tf='all';
+function setTF(f,b){tf=f;document.querySelectorAll('#tseg button').forEach(x=>x.classList.remove('on'));b.classList.add('on');renderTrains()}
+function renderTrains(){
+  const q=document.getElementById('tsq').value.toLowerCase();
+  let l=S.trains;
+  if(tf==='live')l=l.filter(t=>t.runningCurrently&&!t.cancelled);
+  if(tf==='late')l=l.filter(t=>delay(t)>3);
+  if(tf==='cancel')l=l.filter(t=>t.cancelled);
+  if(q)l=l.filter(t=>String(t.trainNumber).includes(q)||(t.trainType||'').toLowerCase().includes(q)||(t.commuterLineid||'').toLowerCase().includes(q));
+  if(!l.length){document.getElementById('tlist').innerHTML='<div class="empty"><div class="empty-ico">🔍</div><p>Ei tuloksia</p></div>';return}
+  document.getElementById('tlist').innerHTML=l.slice(0,150).map(t=>{
+    const k=t.trainNumber+':'+t.departureDate,loc=S.locs.get(k),d=delay(t),ns=nxStop(t);
+    const locos=(t.journeySections||[]).flatMap(s=>s.locomotives||[]);
+    const ls=locos.map(l=>l.locomotiveType).filter(Boolean).slice(0,2).join(', ');
+    const rare=locos.some(l=>RARE.has(l.locomotiveType));
+    return`<div class="titem" onclick="openDet('${k}')">
+      <div class="tnum">${t.trainType} ${t.trainNumber}</div>
+      <div class="tinfo">
+        <div class="tname">${TCAT[t.trainCategory]||t.trainCategory||''}${t.commuterLineid?' ('+t.commuterLineid+')':''}</div>
+        <div class="tmeta">${ns?'➤ '+ns.code+' '+ns.t:'–'}${loc?' · '+Math.round(loc.speed)+' km/h':''}${ls?' · '+ls:''}</div>
+      </div>
+      <div class="tright">
+        ${t.cancelled?'<span class="pill pr">PERUTTU</span>':''}
+        ${t.runningCurrently&&!t.cancelled?'<span class="pill pg">LIVE</span>':''}
+        ${rare?'<span class="pill pp">⚡</span>':''}
+        ${d>3?`<span class="pill pr">+${d}m</span>`:''}
+        ${d<-1?`<span class="pill pg">${d}m</span>`:''}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function showPage(n,b){
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.nb').forEach(x=>x.classList.remove('on'));
+  document.getElementById('page-'+n).classList.add('active');
+  b.classList.add('on');
+  if(n==='map')setTimeout(()=>map.invalidateSize(),50);
+  if(n==='trains')renderTrains();
+  if(n==='watchers')renderW();
+  if(n==='alerts')renderA();
+}
+
+// ── WATCHERS ─────────────────────────────────────────────────
+const WT={LOCO_TYPE:'🚂 Veturityyppi',VEHICLE_NO:'🔢 Ajoneuvonumero (vaunu/veturi)',TRAIN_NO:'🚆 Junanumero',TRAIN_TYPE:'🏷 Junatyyppi',STATION:'🚉 Liikennepaikka',ROUTE:'🗺 Reitti',APPROACH:'📍 Maantieteellinen lähestyminen'};
+
+function renderW(){
+  const ac=S.watchers.filter(w=>w.on).length;
+  document.getElementById('wsub').textContent=`${ac} aktiivista · ${S.watchers.length} yhteensä`;
+  const el=document.getElementById('wlist');
+  if(!S.watchers.length){
+    el.innerHTML=`<div class="empty"><div class="empty-ico">🔔</div><h3>Ei vahteja</h3><p>Luo vahti saadaksesi ilmoituksen kun tietty kalusto tai tapahtuma havaitaan.</p><button class="btn btn-blue" style="margin-top:8px" onclick="openWSheet()">+ Luo ensimmäinen vahti</button></div>`;return}
+  el.innerHTML=S.watchers.map((w,i)=>`
+    <div class="wcard ${w.on?'':'off'}">
+      <div class="whead"><div><div class="wtype">${WT[w.type]||w.type}</div><div class="wname">${w.name}</div></div>
+        <div style="display:flex;gap:6px"><button class="bico" onclick="togW(${i})">${w.on?'⏸':'▶'}</button><button class="bico" onclick="delW(${i})">✕</button></div></div>
+      <div class="wcond">${wDesc(w)}</div>
+      <div class="wfoot">
+        <span class="pill ${w.on?'pg':'pb'}">${w.on?'AKTIIVINEN':'PYSÄYTETTY'}</span>
+        <span style="font-size:11px;color:var(--t3)">Jäähdytys: ${w.cool} min</span>
+        ${w.lat?`<span style="font-size:11px;color:var(--t3);margin-left:auto">Viimeksi: ${w.lastAt?timeAgo(w.lastAt):'–'}</span>`:''}
+      </div>
+    </div>`).join('');
+}
+
+function wDesc(w){
+  const sn=c=>S.stations.get(c)?.stationName||c;
+  switch(w.type){
+    case'LOCO_TYPE':return`Veturityyppi: <strong>${w.locoType}</strong>`;
+    case'VEHICLE_NO':return`Ajoneuvonumero: <strong>${w.vno}</strong><br><span style="font-size:12px;color:var(--t3)">Vaunu tai veturi tällä numerolla missä tahansa junassa</span>`;
+    case'TRAIN_NO':return`Junanumero: <strong>${w.tno}</strong>`;
+    case'TRAIN_TYPE':return`Junatyyppi: <strong>${w.ttype}</strong>`;
+    case'STATION':return`Liikennepaikka: <strong>${sn(w.stn)} (${w.stn})</strong><br>Tapahtuma: <strong>${{ARR:'Saapuminen',DEP:'Lähtö',BOTH:'Saapuminen tai lähtö'}[w.sev]}</strong>`;
+    case'ROUTE':return`Reitti: <strong>${sn(w.orig)} → ${sn(w.dest)}</strong>`;
+    case'APPROACH':return`Koordinaatti: <strong>${w.lat.toFixed(4)}, ${w.lng.toFixed(4)}</strong> · Säde: <strong>${w.rad} km</strong> · Varoitus: <strong>${w.adv} min</strong>`;
+    default:return'';
+  }
+}
+
+function togW(i){S.watchers[i].on=!S.watchers[i].on;sv('rw_w',S.watchers);renderW()}
+function delW(i){if(confirm('Poistetaanko vahti?')){S.watchers.splice(i,1);sv('rw_w',S.watchers);renderW()}}
+
+function openWSheet(){
+  const sopts=Array.from(S.stations.values()).filter(s=>s.passengerTraffic||s.type==='STATION').sort((a,b)=>a.stationName.localeCompare(b.stationName,'fi')).map(s=>`<option value="${s.stationShortCode}">${s.stationName} (${s.stationShortCode})</option>`).join('');
+  window._sopts=sopts;
+  document.getElementById('shbody').innerHTML=`
+    <div class="shtitle">Uusi vahti</div>
+    <div class="form">
+      <div class="field"><div class="flabel">Vahdin nimi</div><input class="inp" id="wn" placeholder="esim. Dr16 Lahdessa tai vaunu 3416"/></div>
+      <div class="field"><div class="flabel">Tarkkailutyyppi</div>
+        <select class="inp" id="wt" onchange="updWF()">
+          ${Object.entries(WT).map(([v,l])=>`<option value="${v}">${l}</option>`).join('')}
+        </select>
+      </div>
+      <div id="wdyn"></div>
+      <div class="field"><div class="flabel">Jäähdytysaika (min)</div><input class="inp" id="wcl" type="number" value="60" min="1" max="1440"/></div>
+      <div style="display:flex;gap:8px;padding-top:4px">
+        <button class="btn btn-out" style="flex:1" onclick="closeSheet()">Peruuta</button>
+        <button class="btn btn-blue" style="flex:1" onclick="saveW()">Tallenna vahti</button>
+      </div>
+    </div>`;
+  document.getElementById('shover').classList.add('on');
+  updWF();
+}
+
+function updWF(){
+  const t=document.getElementById('wt')?.value;
+  const so=window._sopts||'';
+  const lc=LOCOS.map(x=>`<span class="chip" onclick="selChip(this,'wlc')">${x}</span>`).join('');
+  const tc=['IC','S','P','T','HDM','HL','HV','PVV'].map(x=>`<span class="chip" onclick="selChip(this,'wtt')">${x}</span>`).join('');
+  const fs={
+    LOCO_TYPE:`<div class="field"><div class="flabel">Veturityyppi</div><input class="inp" id="wlc" placeholder="esim. Dr16"/><div class="chip-row">${lc}</div></div>`,
+    VEHICLE_NO:`<div class="field"><div class="flabel">Ajoneuvonumero</div><input class="inp" id="wvno" placeholder="esim. 94104 tai 3416"/><div style="font-size:12px;color:var(--t3);margin-top:4px">Löydät numeron vaunun kyljestä tai Junakalusto.fi-sivustolta</div></div>`,
+    TRAIN_NO:`<div class="field"><div class="flabel">Junanumero</div><input class="inp" id="wtno" type="number" placeholder="esim. 63"/></div>`,
+    TRAIN_TYPE:`<div class="field"><div class="flabel">Junatyyppi</div><input class="inp" id="wtt" placeholder="IC"/><div class="chip-row">${tc}</div></div>`,
+    STATION:`<div class="field"><div class="flabel">Liikennepaikka</div><select class="inp" id="wstn"><option value="">Valitse liikennepaikka…</option>${so}</select></div><div class="field"><div class="flabel">Tapahtuma</div><select class="inp" id="wsev"><option value="BOTH">Saapuminen tai lähtö</option><option value="ARR">Saapuminen</option><option value="DEP">Lähtö</option></select></div>`,
+    ROUTE:`<div class="row2"><div class="field"><div class="flabel">Lähtöasema</div><select class="inp" id="worg"><option value="">Valitse…</option>${so}</select></div><div class="field"><div class="flabel">Määränpää</div><select class="inp" id="wdst"><option value="">Valitse…</option>${so}</select></div></div>`,
+    APPROACH:`<div class="row2"><div class="field"><div class="flabel">Leveysaste</div><input class="inp" id="wlt" type="number" step=".0001" placeholder="60.9828"/></div><div class="field"><div class="flabel">Pituusaste</div><input class="inp" id="wlg" type="number" step=".0001" placeholder="25.6563"/></div></div><button class="btn btn-out btn-sm" onclick="gpsW()">📍 Nykyinen sijainti</button><div class="row2"><div class="field"><div class="flabel">Säde (km)</div><input class="inp" id="wrd" type="number" value="10"/></div><div class="field"><div class="flabel">Varoitus (min)</div><input class="inp" id="wad" type="number" value="15"/></div></div>`,
+  };
+  const el=document.getElementById('wdyn');
+  if(el)el.innerHTML=fs[t]||'';
+}
+
+function selChip(el,id){el.closest('.field').querySelectorAll('.chip').forEach(c=>c.classList.remove('sel'));el.classList.add('sel');document.getElementById(id).value=el.textContent}
+function gpsW(){navigator.geolocation.getCurrentPosition(p=>{document.getElementById('wlt').value=p.coords.latitude.toFixed(6);document.getElementById('wlg').value=p.coords.longitude.toFixed(6)},()=>alert('Sijaintia ei saatu'))}
+
+function saveW(){
+  const name=document.getElementById('wn').value.trim();
+  const type=document.getElementById('wt').value;
+  const cool=Number(document.getElementById('wcl').value)||60;
+  if(!name){alert('Anna vahdille nimi');return}
+  const g=id=>document.getElementById(id)?.value?.trim()||'';
+  const w={id:Date.now(),name,type,on:true,cool,lastAt:null};
+  if(type==='LOCO_TYPE'){if(!g('wlc')){alert('Valitse veturityyppi');return}w.locoType=g('wlc')}
+  else if(type==='VEHICLE_NO'){if(!g('wvno')){alert('Syötä ajoneuvonumero');return}w.vno=g('wvno')}
+  else if(type==='TRAIN_NO'){if(!g('wtno')){alert('Syötä junanumero');return}w.tno=Number(g('wtno'))}
+  else if(type==='TRAIN_TYPE'){if(!g('wtt')){alert('Valitse junatyyppi');return}w.ttype=g('wtt').toUpperCase()}
+  else if(type==='STATION'){if(!g('wstn')){alert('Valitse liikennepaikka');return}w.stn=g('wstn');w.sev=g('wsev')||'BOTH'}
+  else if(type==='ROUTE'){if(!g('worg')||!g('wdst')){alert('Valitse molemmat asemat');return}w.orig=g('worg');w.dest=g('wdst')}
+  else if(type==='APPROACH'){const lt=Number(g('wlt')),lg=Number(g('wlg'));if(!lt||!lg){alert('Syötä koordinaatit');return}w.lat=lt;w.lng=lg;w.rad=Number(g('wrd'))||10;w.adv=Number(g('wad'))||15}
+  S.watchers.push(w);sv('rw_w',S.watchers);closeSheet();renderW();updBadges();
+}
+
+function evalW(w,t){
+  const rows=t.timetableRows||[];
+  const locos=(t.journeySections||[]).flatMap(s=>s.locomotives||[]);
+  const wagons=(t.journeySections||[]).flatMap(s=>s.wagons||[]);
+  switch(w.type){
+    case'LOCO_TYPE':return locos.some(l=>l.locomotiveType?.toUpperCase()===w.locoType?.toUpperCase());
+    case'VEHICLE_NO':return locos.some(l=>l.vehicleNumber===w.vno)||wagons.some(v=>v.vehicleNumber===w.vno||v.salesNumber===w.vno);
+    case'TRAIN_NO':return t.trainNumber===Number(w.tno)&&t.runningCurrently;
+    case'TRAIN_TYPE':return t.trainType?.toUpperCase()===w.ttype?.toUpperCase()&&t.runningCurrently;
+    case'STATION':{return rows.some(r=>r.stationShortCode===w.stn&&r.actualTime&&(w.sev==='BOTH'||(w.sev==='ARR'&&r.type==='ARRIVAL')||(w.sev==='DEP'&&r.type==='DEPARTURE')))}
+    case'ROUTE':{const c=rows.map(r=>r.stationShortCode);const oi=c.indexOf(w.orig),di=c.lastIndexOf(w.dest);return oi!==-1&&di!==-1&&oi<di&&t.runningCurrently}
+    default:return false;
+  }
+}
+
+function chkW(){
+  for(const w of S.watchers){
+    if(!w.on)continue;
+    if(w.lastAt&&Date.now()-new Date(w.lastAt)<w.cool*60000)continue;
+    for(const t of S.trains){
+      if(evalW(w,t)){
+        const locos=(t.journeySections||[]).flatMap(s=>s.locomotives||[]);
+        const ls=locos.map(l=>l.locomotiveType).filter(Boolean).join(', ');
+        const sn=c=>S.stations.get(c)?.stationName||c;
+        let body='';
+        if(w.type==='LOCO_TYPE')body=`${t.trainType} ${t.trainNumber} · veturi ${ls}`;
+        else if(w.type==='VEHICLE_NO')body=`Ajoneuvo ${w.vno} junassa ${t.trainType} ${t.trainNumber}`;
+        else if(w.type==='TRAIN_NO')body=`Juna ${t.trainNumber} liikkeessä${ls?' · '+ls:''}`;
+        else if(w.type==='TRAIN_TYPE')body=`${t.trainType} ${t.trainNumber}${ls?' · '+ls:''}`;
+        else if(w.type==='STATION')body=`${t.trainType} ${t.trainNumber} · ${sn(w.stn)}`;
+        else if(w.type==='ROUTE')body=`${t.trainType} ${t.trainNumber} · ${sn(w.orig)}→${sn(w.dest)}`;
+        fAlert(w,t,body);break;
+      }
+    }
+  }
+}
+
+function chkApproach(){
+  const aws=S.watchers.filter(w=>w.on&&w.type==='APPROACH');
+  if(!aws.length)return;
+  const tm=new Map(S.trains.map(t=>[t.trainNumber+':'+t.departureDate,t]));
+  for(const w of aws){
+    if(w.lastAt&&Date.now()-new Date(w.lastAt)<w.cool*60000)continue;
+    for(const[k,loc]of S.locs){
+      const dist=hav(loc.latitude,loc.longitude,w.lat,w.lng);
+      if(dist<=w.rad){
+        const eta=Math.round((dist/(loc.speed||80))*60);
+        if(eta<=w.adv){const t=tm.get(k);fAlert(w,t,`${t?t.trainType+' '+t.trainNumber:'Juna'} · ${Math.round(dist*10)/10}km · ETA ${eta}min`);break}
+      }
+    }
+  }
+}
+
+function fAlert(w,t,body){
+  const icons={LOCO_TYPE:'🚂',VEHICLE_NO:'🔢',TRAIN_NO:'🚆',TRAIN_TYPE:'🏷',STATION:'🚉',ROUTE:'🗺',APPROACH:'📍'};
+  const a={id:Date.now(),ico:icons[w.type]||'🔔',title:`Vahti lauennut: ${w.name}`,body,trainKey:t?t.trainNumber+':'+t.departureDate:null,time:new Date().toISOString(),read:false};
+  S.alerts.unshift(a);if(S.alerts.length>100)S.alerts.pop();sv('rw_a',S.alerts);
+  w.lastAt=new Date().toISOString();sv('rw_w',S.watchers);updBadges();
+  if(Notification.permission==='granted')new Notification(a.title,{body,icon:'icon-192.png',tag:'rw-'+w.id,vibrate:[200,100,200]});
+}
+
+function renderA(){
+  const u=S.alerts.filter(a=>!a.read).length;
+  document.getElementById('asub').textContent=`${u} lukematonta · ${S.alerts.length} yhteensä`;
+  const el=document.getElementById('alist');
+  if(!S.alerts.length){el.innerHTML='<div class="empty"><div class="empty-ico">🔔</div><h3>Ei hälytyksiä</h3><p>Luo vahteja saadaksesi ilmoituksia.</p></div>';return}
+  el.innerHTML=S.alerts.map(a=>`<div class="aitem ${a.read?'':'unread'}" onclick="markRead('${a.id}')">
+    <div class="aico">${a.ico||'🔔'}</div>
+    <div style="flex:1;min-width:0"><div class="atitle">${a.title}</div><div class="abody">${a.body}</div><div class="atime">${timeAgo(a.time)}</div></div>
+    ${!a.read?'<div style="width:7px;height:7px;border-radius:50%;background:var(--blue);flex-shrink:0;margin-top:5px"></div>':''}
+  </div>`).join('');
+}
+
+function markRead(id){const a=S.alerts.find(x=>String(x.id)===String(id));if(a){a.read=true;sv('rw_a',S.alerts)}updBadges();renderA()}
+function clearAlerts(){S.alerts.forEach(a=>a.read=true);sv('rw_a',S.alerts);updBadges();renderA()}
+function updBadges(){
+  const u=S.alerts.filter(a=>!a.read).length;
+  const ab=document.getElementById('abadge');ab.textContent=u;ab.style.display=u?'block':'none';
+}
+
+// ── AI PHOTOGRAPHY PLANNER ────────────────────────────────────
+async function runPlan(){
+  const loc=document.getElementById('pploc').value.trim();
+  const tno=document.getElementById('pptno').value.trim();
+  const dt2=document.getElementById('ppdate').value;
+  const gear=document.getElementById('ppgear').value.trim();
+  const extra=document.getElementById('ppextra').value.trim();
+  if(!loc||!tno||!gear){alert('Täytä kuvauspaikka, junanumero ja kalusto');return}
+
+  const btn=document.getElementById('ppbtn');
+  btn.disabled=true;btn.innerHTML='<span class="spin"></span> Haetaan junatiedot Digitrafficista…';
+
+  let trainTxt='',compInfo='',trainCard='';
+  try{
+    const[tr,cp]=await Promise.all([
+      dtf(`/trains/${dt2}/${tno}`).then(d=>Array.isArray(d)?d[0]:d),
+      dtf(`/compositions/${dt2}/${tno}`).then(d=>({locos:d.journeySections?.flatMap(s=>s.locomotives||[])||[],wagons:d.journeySections?.flatMap(s=>s.wagons||[])||[]}))
+    ]);
+    const stops=bStops(tr);
+    const stopsStr=stops.map(s=>`  ${s.code} ${s.t}${s.d>0?' (+'+s.d+'m)':''}`).join('\n');
+    const ls=cp.locos.map(l=>`${l.locomotiveType} #${l.vehicleNumber}`).join(', ')||'ei tiedossa';
+    const ws=cp.wagons.length?cp.wagons.slice(0,6).map(w=>w.wagonType).join(', ')+(cp.wagons.length>6?' +'+(cp.wagons.length-6):''):'ei tiedossa';
+    const d=delay(tr);
+    const rare=cp.locos.some(l=>RARE.has(l.locomotiveType));
+
+    trainTxt=`Digitraffic-data:\n- Juna: ${tr.trainType} ${tr.trainNumber}\n- Tyyppi: ${TCAT[tr.trainCategory]||tr.trainCategory}\n- Operaattori: ${tr.operatorShortCode||'VR'}\n- Tila: ${tr.runningCurrently?'Liikkeessä':'Ei liikkeessä'}${tr.cancelled?' (PERUTTU)':''}\n- Myöhästyminen: ${d} min\n- Veturit: ${ls}\n- Vaunut: ${ws}\n- Harvinainen kalusto: ${rare?'KYLLÄ – '+cp.locos.filter(l=>RARE.has(l.locomotiveType)).map(l=>l.locomotiveType).join(', '):'Ei'}\n- Aikataulu:\n${stopsStr}`;
+    compInfo=ls;
+
+    trainCard=`<div class="card" style="border-color:${rare?'rgba(167,139,250,.3)':'var(--b0)'}">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+        <span style="font-family:monospace;font-weight:800;font-size:17px;color:var(--blue)">${tr.trainType} ${tr.trainNumber}</span>
+        <div style="display:flex;gap:5px">${tr.runningCurrently?'<span class="pill pg">LIVE</span>':''}${rare?'<span class="pill pp">⚡ Harvinainen</span>':''}${d>2?`<span class="pill pr">+${d}m</span>`:''}</div>
+      </div>
+      <div class="slabel">Kalusto</div>
+      <div class="consist">${cp.locos.map(l=>`<span class="cv ${RARE.has(l.locomotiveType)?'cv-rare':'cv-loco'}">${l.locomotiveType} <span style="opacity:.55;font-size:10px">#${l.vehicleNumber}</span></span>`).join('')||'<span class="cv cv-wagon">Ei tiedossa</span>'}</div>
+      <div class="slabel" style="margin-top:10px">Seuraavat pysäkit</div>
+      ${stops.slice(0,5).map(s=>`<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--b0);font-size:13px"><span style="font-family:monospace;font-weight:600">${s.code}</span><span style="color:var(--t2)">${s.t}${s.d>0?` <span style="color:var(--red)">+${s.d}m</span>`:''}</span></div>`).join('')}
+    </div>`;
+  }catch(e){
+    trainTxt=`Junaa ${tno} ei löydy päivälle ${dt2}. Laadi suunnitelma ilman tarkkaa aikataulua.`;
+  }
+
+  // Näytä junakortti
+  document.getElementById('pptraincard').innerHTML=trainCard;
+  document.getElementById('pptraincard').style.display=trainCard?'block':'none';
+
+  // Rakenna prompti claudelle
+  const prompt=`Olet suomalainen rautatievalokuvaaja-asiantuntija.\n\nKäyttäjä haluaa kuvata:\n- Paikka: ${loc}\n- Juna: ${tno}, päivä: ${dt2}\n- Kalusto: ${gear}${extra?'\n- Toiveet: '+extra:''}\n\n${trainTxt}\n\nLaadi kuvaussuunnitelma suomeksi:\n\n## Saapumisaika ja sijoittuminen\nKoska juna saapuu ja mihin asettua?\n\n## Valaistus\nAurinkokulmaus tälle päivämäärälle ja vuodenajalle Suomessa.\n\n## Kalustosta\n${compInfo?'Kommentoi erityisesti kalustoa '+compInfo+' kuvaajan näkökulmasta.':'Yleistä kalustotietoa.'}\n\n## Kamera-asetukset\nSuljinaika, aukko, ISO kalustolla: ${gear}. Erikseen liikkuvalle ja seisovalle junalle.\n\n${gear.toLowerCase().includes('drone')||gear.toLowerCase().includes('dji')||gear.toLowerCase().includes('mavic')||gear.toLowerCase().includes('mini')?'## Drone\nKorkeus, kulma, lentoreitti suhteessa rataan ja aurinkoon.\n':''}## Turvallisuus\nEtäisyydet ja huomioitavat asiat.\n\nOle konkreettinen ja käytännöllinen.`;
+
+  document.getElementById('ppresult').innerHTML=`
+    <div class="ai-wrap">
+      <div class="ai-hdr"><div class="ai-ico">📸</div><div><div class="ai-title">Junan tiedot haettu!</div><div class="ai-sub">Kopioi prompti → liitä claude.ai-chattiin</div></div></div>
+      <p style="font-size:13px;color:var(--t2);line-height:1.6;margin-bottom:12px">
+        Junan tiedot (veturit, aikataulu, viiveet) on haettu Digitrafficista automaattisesti.
+        Kopioi alla oleva teksti ja liitä se <a href="https://claude.ai" target="_blank" style="color:var(--blue)">claude.ai</a>-chattiin — saat täyden suunnitelman.
+      </p>
+      <button id="copybtn" class="btn btn-blue" style="width:100%;margin-bottom:10px" onclick="navigator.clipboard.writeText(document.getElementById('prompttxt').value).then(()=>{document.getElementById('copybtn').textContent='✓ Kopioitu!';setTimeout(()=>document.getElementById('copybtn').textContent='📋 Kopioi prompti',2000)})">
+        📋 Kopioi prompti
+      </button>
+      <textarea id="prompttxt" class="inp" style="height:100px;font-size:12px;font-family:monospace;resize:vertical" readonly></textarea>
+    </div>`;
+  document.getElementById('prompttxt').value = prompt;
+  document.getElementById('ppresult').style.display='block';
+  btn.disabled=false;btn.innerHTML='🤖 Luo kuvaussuunnitelma';
+}
+
+function closeSheet(){document.getElementById('shover').classList.remove('on')}
+
+// ── HELPERS ───────────────────────────────────────────────────
+function delay(t){if(!t?.timetableRows?.length)return 0;const l=[...t.timetableRows].reverse().find(r=>r.differenceInMinutes!=null);return l?.differenceInMinutes||0}
+function nxStop(t){const r=t?.timetableRows?.find(r=>r.type==='DEPARTURE'&&!r.actualTime);if(!r)return null;const d=new Date(r.liveEstimateTime||r.scheduledTime);return{code:r.stationShortCode,t:d.toLocaleTimeString('fi-FI',{hour:'2-digit',minute:'2-digit'}),d:r.differenceInMinutes||0}}
+function bStops(t){const seen=new Set(),s=[];for(const r of t.timetableRows||[]){if(seen.has(r.stationShortCode))continue;seen.add(r.stationShortCode);const d=t.timetableRows.find(x=>x.stationShortCode===r.stationShortCode&&x.type==='DEPARTURE')||r;const dt=new Date(d.liveEstimateTime||d.scheduledTime);s.push({code:r.stationShortCode,t:dt.toLocaleTimeString('fi-FI',{hour:'2-digit',minute:'2-digit'}),d:d.differenceInMinutes||0,actual:!!d.actualTime,tr:d.commercialTrack||''})}return s}
+function hav(a,b,c,d){const R=6371,r=x=>x*Math.PI/180,dl=r(c-a),dg=r(d-b),q=Math.sin(dl/2)**2+Math.cos(r(a))*Math.cos(r(c))*Math.sin(dg/2)**2;return R*2*Math.atan2(Math.sqrt(q),Math.sqrt(1-q))}
+function timeAgo(i){const s=Math.floor((Date.now()-new Date(i))/1000);if(s<60)return'juuri nyt';if(s<3600)return Math.floor(s/60)+' min sitten';if(s<86400)return Math.floor(s/3600)+' t sitten';return new Date(i).toLocaleDateString('fi-FI')}
+
+// ── DATA LOADING ──────────────────────────────────────────────
+async function loadStn(){try{const d=await dtf('/metadata/stations');d.forEach(s=>S.stations.set(s.stationShortCode,s));console.log(`✓ ${S.stations.size} asemaa`)}catch(e){console.warn('Asemat:',e)}}
+async function loadTrains(){try{const d=await dtf(`/live-trains?departure_date=${new Date().toISOString().slice(0,10)}&include_nonstopping=false`);S.trains=d;const n=d.filter(t=>t.runningCurrently&&!t.cancelled).length;document.getElementById('livcnt').textContent=n;document.getElementById('tsub').textContent=`${n} liikkeessä · ${d.length} tänään`;chkW();if(document.getElementById('page-trains').classList.contains('active'))renderTrains()}catch(e){console.warn('Junat:',e)}}
+async function loadLocs(){try{const d=await dtf('/train-locations/latest');S.locs.clear();d.forEach(l=>S.locs.set(l.trainNumber+':'+l.departureDate,l));document.getElementById('mapcnt').textContent=d.length;updMarkers();chkApproach()}catch(e){console.warn('Sijainnit:',e)}}
+
+async function init(){
+  document.getElementById('ppdate').value=new Date().toISOString().slice(0,10);
+  if('Notification' in window&&Notification.permission==='default')Notification.requestPermission();
+  if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js').catch(()=>{});
+  await loadStn();
+  await loadTrains();
+  await loadLocs();
+  renderA();renderW();updBadges();
+  setInterval(loadLocs,5000);
+  setInterval(loadTrains,60000);
+  setInterval(chkW,15000);
+}
+
+init();
 </script>
 </body>
 </html>
