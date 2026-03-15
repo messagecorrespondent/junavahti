@@ -711,9 +711,9 @@ function timeAgo(i){const s=Math.floor((Date.now()-new Date(i))/1000);if(s<60)re
 async function loadStn(){try{const d=await dtf('/metadata/stations');d.forEach(s=>S.stations.set(s.stationShortCode,s));console.log(`✓ ${S.stations.size} asemaa`)}catch(e){console.warn('Asemat:',e)}}
 async function loadTrains(){try{
   const today=new Date().toISOString().slice(0,10);
-  const stations=['HKI','TPE','TKU','OUL','JY','KUO','LH','RI','TL','KV','SK','IL','PM','PRI','TRE'];
+  const stations=['HKI','TPE','TKU','OUL','JY','KUO','LH','RI','TL','KV','SK','IL','PMI','PRI','KE','HML','KTK'];
   const results=await Promise.all(stations.map(s=>
-    dtf('/live-trains/station/'+s+'?arrived_trains=0&arriving_trains=30&departed_trains=0&departing_trains=30&include_nonstopping=false&departure_date='+today).catch(()=>[])
+    dtf('/live-trains?station='+s+'&arrived_trains=0&arriving_trains=100&departed_trains=0&departing_trains=100&include_nonstopping=false&departure_date='+today).catch(()=>[])
   ));
   const seen=new Set();
   const all=[];
